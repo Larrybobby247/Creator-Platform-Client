@@ -1,29 +1,41 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-  ],
+plugins: [
+react(),
+tailwindcss(),
+],
 
-  server: {
-    proxy: {
-      "/api": "https://creator-server-hdsk.onrender.com",
-      "/uploads": "https://creator-server-hdsk.onrender.com",
-      "/socket.io": {
-        target: "https://creator-server-hdsk.onrender.com",
-        ws: true,
-      },
-    },
+server: {
+proxy: {
+"/api": {
+target: "https://creator-server-hdsk.onrender.com",
+changeOrigin: true,
+secure: true,
+},
+
+  "/uploads": {
+    target: "https://creator-server-hdsk.onrender.com",
+    changeOrigin: true,
+    secure: true,
   },
 
-  build: {
-    target: "es2020",
-    sourcemap: false,
-    cssCodeSplit: true,
-    chunkSizeWarningLimit: 250,
+  "/socket.io": {
+    target: "https://creator-server-hdsk.onrender.com",
+    changeOrigin: true,
+    secure: true,
+    ws: true,
   },
+},
+
+},
+
+build: {
+target: "es2020",
+sourcemap: false,
+cssCodeSplit: true,
+chunkSizeWarningLimit: 250,
+},
 });
