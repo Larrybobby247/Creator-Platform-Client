@@ -11,7 +11,7 @@ const normalizedPath = path.startsWith("/")
 : "/${path}";
 
 const r = await fetch(
-"${API_BASE_URL}/api${normalizedPath}",
+`${API_BASE_URL}/api${normalizedPath}`,
 {
 method,
 credentials: "include",
