@@ -1,0 +1,307 @@
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-bg: #101016;
+  --color-card: #191923;
+  --color-card2: #222230;
+  --color-input: #171720;
+
+  --color-violet: #8B5CF6;
+  --color-violet-light: #A78BFA;
+  --color-pink: #EC4899;
+
+  --color-ink: #F5F5FA;
+  --color-ink2: #A1A1B5;
+  --color-muted: #77778D;
+
+  --color-line: #30303D;
+  --color-divider: #292935;
+
+  --color-ok: #22C55E;
+  --color-warn: #F59E0B;
+  --color-bad: #EF4444;
+  --color-info: #60A5FA;
+
+  /* Font */
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Border radius */
+  --radius-btn: 12px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+
+  /* Keyframes */
+  --animate-floaty: floaty 5s ease-in-out infinite;
+  --animate-page: page 0.28s cubic-bezier(.2,.8,.2,1);
+  --animate-tab: tab 0.22s ease-out;
+  --animate-sheet: sheet 0.3s cubic-bezier(.2,.8,.2,1);
+  --animate-fade: fade 0.2s ease-out;
+  --animate-heart: heart 0.5s cubic-bezier(.2,1.6,.4,1);
+  --animate-glow: glow 2.2s ease-in-out infinite;
+  --animate-rise: rise 0.3s ease-out both;
+  --animate-burst: burst 0.6s ease-out forwards;
+
+  /* Keyframe definitions */
+  @keyframes slide {
+    from {
+      transform: translateY(-8px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes grow {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes floaty {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+
+  @keyframes pop {
+    from {
+      transform: scale(.8);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes page {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes tab {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes sheet {
+    from {
+      transform: translateY(40px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes heart {
+    0% {
+      transform: scale(.3);
+    }
+    60% {
+      transform: scale(1.35);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes burst {
+    0% {
+      transform: translate(0, 0) scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(var(--x), var(--y)) scale(0);
+      opacity: 0;
+    }
+  }
+
+  @keyframes glow {
+    0%, 100% {
+      box-shadow:
+        0 0 0 0 rgba(139, 92, 246, .55),
+        0 0 18px rgba(139, 92, 246, .35);
+    }
+    50% {
+      box-shadow:
+        0 0 0 12px rgba(139, 92, 246, 0),
+        0 0 34px rgba(236, 72, 153, .5);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Global styles */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #34344a transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2b2b3c;
+    border-radius: 999px;
+    border: 2px solid #101016;
+    transition: background 0.2s;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(#8b5cf6, #ec4899);
+    background-color: #8b5cf6;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      color 0.18s,
+      opacity 0.18s,
+      transform 0.12s;
+  }
+  button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  *:focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-violet-light;
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+  }
+}
+
+
+@layer components {
+  .card {
+    @apply bg-card border border-line rounded-card p-4 sm:p-6;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-btn px-4 py-3 text-sm font-semibold min-h-[44px] transition disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-btn px-4 py-3 text-sm font-semibold min-h-[44px] transition disabled:opacity-50 disabled:cursor-not-allowed bg-violet text-white hover:bg-violet-light;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-btn px-4 py-3 text-sm font-semibold min-h-[44px] transition disabled:opacity-50 disabled:cursor-not-allowed bg-card2 text-ink hover:bg-line;
+  }
+
+  .input {
+    @apply w-full bg-input border border-line rounded-btn px-3 py-3 text-sm placeholder:text-muted;
+  }
+
+  .chip {
+    @apply px-3 py-2 rounded-full text-sm whitespace-nowrap border;
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity .6s ease, transform .6s ease;
+  }
+
+  .reveal.in {
+    opacity: 1;
+    transform: none;
+  }
+
+  .draw {
+    stroke-dasharray: var(--len);
+    stroke-dashoffset: var(--len);
+  }
+
+  .in .draw {
+    animation: draw 1.6s ease-out forwards;
+  }
+
+  .bar {
+    transform-origin: bottom;
+    transform: scaleY(0);
+  }
+
+  .in .bar {
+    animation: grow .9s cubic-bezier(.2,.8,.2,1) forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) { *, .reveal, .draw, .bar { transition: none !important; animation: none !important; opacity: 1 !important; transform: none !important; stroke-dashoffset: 0 !important; } }

@@ -1,0 +1,11 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import './index.css';
+import App from './App.jsx';
+import { AuthProvider } from './context/Auth.jsx';
+import { LiveProvider } from './context/Live.jsx';
+import { ConfirmSpendProvider } from './components/ConfirmSpend.jsx';
+import { queryClient } from './lib/query.js';
+createRoot(document.getElementById('root')).render(<QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><LiveProvider><ConfirmSpendProvider><App /></ConfirmSpendProvider></LiveProvider></AuthProvider></BrowserRouter></QueryClientProvider>);
