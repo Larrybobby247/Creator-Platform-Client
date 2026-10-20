@@ -11,10 +11,10 @@ export default defineConfig({
 
   server: {
     proxy: {
-      "/api": "http://localhost:4000",
-      "/uploads": "http://localhost:4000",
+      "/api": "https://creator-server-hdsk.onrender.com",
+      "/uploads": "https://creator-server-hdsk.onrender.com",
       "/socket.io": {
-        target: "http://localhost:4000",
+        target: "https://creator-server-hdsk.onrender.com",
         ws: true,
       },
     },
