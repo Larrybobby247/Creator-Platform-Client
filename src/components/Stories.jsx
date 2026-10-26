@@ -10,7 +10,7 @@ import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 
 const BG = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink' };
-const Ring = ({ unseen, children }) => <span className={`p-[2px] rounded-full ${unseen ? 'bg-gradient-to-tr from-violet to-pink' : 'bg-line'}`}><span className="block p-[2px] bg-bg rounded-full">{children}</span></span>;
+const Ring = ({ unseen, children }) => <span className={`inline-block p-[2px] rounded-full ${unseen ? 'bg-gradient-to-tr from-violet to-pink' : 'bg-line'}`}><span className="block p-[2px] bg-bg rounded-full">{children}</span></span>;
 
 export function AddStoryModal({ open, onClose }) {
   const qc = useQueryClient(); const { user } = useAuth(); const { toast } = useLive(); const fileRef = useRef();
@@ -61,14 +61,16 @@ export function StoryViewer({ groups, start = 0, onClose }) {
     </div></div>;
 }
 
+const Item = ({ children, label, sub, onClick, aria, delay = 0 }) => <button onClick={onClick} aria-label={aria} className="flex flex-col items-center gap-1 shrink-0 w-[68px] snap-start animate-rise" style={{ animationDelay: `${delay}ms` }}>{children}<span className="text-[11px] text-ink2 truncate w-full text-center leading-4">{label}</span><span className="text-[9px] text-muted leading-3 h-3 -mt-1">{sub || ''}</span></button>;
 export function StoryBar() {
   const { user } = useAuth(); const q = useQuery({ queryKey: ['stories'], queryFn: get('/stories'), staleTime: 60_000 }); const [view, setView] = useState(null); const [adding, setAdding] = useState(false);
   const groups = q.data ? (q.data.mine ? [q.data.mine, ...q.data.groups] : q.data.groups) : []; const mine = q.data?.mine;
-  return <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 min-h-[88px]" aria-label="Statuses">
-    <div className="flex flex-col items-center gap-1 shrink-0 w-16 relative"><button onClick={() => (mine ? setView({ start: 0 }) : setAdding(true))} aria-label={mine ? 'View your status' : 'Add status'}><Ring unseen={!!mine}><Avatar user={user} size={52} /></Ring></button>
-      <button onClick={() => setAdding(true)} aria-label="Add status" className="absolute top-9 right-1 grid place-items-center w-5 h-5 rounded-full bg-violet text-white ring-2 ring-bg"><Plus size={12} /></button><span className="text-[11px] text-ink2 truncate w-full text-center">Your status</span></div>
-    {q.isPending && [1, 2, 3, 4].map((i) => <div key={i} className="w-16 shrink-0 flex flex-col items-center gap-1"><div className="w-14 h-14 rounded-full bg-card animate-pulse" /><div className="w-10 h-2 rounded bg-card animate-pulse" /></div>)}
-    {(q.data?.groups || []).map((g, i) => <button key={g.user._id} onClick={() => setView({ start: groups.indexOf(g) })} className="flex flex-col items-center gap-1 shrink-0 w-16 animate-rise" style={{ animationDelay: `${i * 40}ms` }}><Ring unseen={g.unseen}><Avatar user={g.user} size={52} /></Ring><span className="text-[11px] text-ink2 truncate w-full text-center">{g.user.username}</span>{g.source === 'suggested' && <span className="text-[9px] text-muted -mt-1">suggested</span>}</button>)}
+  // Every item has the same width, ring size and two-line label block, so the avatars sit on one line and the row lines up with the feed cards.
+  return <div className="flex items-start gap-2 overflow-x-auto no-scrollbar snap-x pb-1 -mx-1 px-1" aria-label="Statuses">
+    <div className="relative shrink-0 w-[68px]"><Item aria="View or add your status" label="Your status" onClick={() => (mine ? setView({ start: 0 }) : setAdding(true))}><Ring unseen={!!mine}><Avatar user={user} size={52} /></Ring></Item>
+      <button onClick={() => setAdding(true)} aria-label="Add status" className="absolute top-[40px] right-[4px] grid place-items-center w-5 h-5 rounded-full bg-violet text-white ring-2 ring-bg"><Plus size={12} /></button></div>
+    {q.isPending && [1, 2, 3, 4].map((i) => <div key={i} className="w-[68px] shrink-0 flex flex-col items-center gap-1"><div className="w-[60px] h-[60px] rounded-full bg-card animate-pulse" /><div className="w-10 h-2 rounded bg-card animate-pulse" /></div>)}
+    {(q.data?.groups || []).map((g, i) => <Item key={g.user._id} label={g.user.username} sub={g.source === 'suggested' ? 'suggested' : ''} delay={i * 40} onClick={() => setView({ start: groups.indexOf(g) })}><Ring unseen={g.unseen}><Avatar user={g.user} size={52} /></Ring></Item>)}
     {view && <StoryViewer groups={groups} start={view.start} onClose={() => setView(null)} />}<AddStoryModal open={adding} onClose={() => setAdding(false)} /></div>;
 }
 // Used on a profile: ring + click-to-view for a person's active status.

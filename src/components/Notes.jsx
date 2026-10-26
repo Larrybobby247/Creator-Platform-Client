@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useConfirm } from './ConfirmDialog.jsx';
 // Private to the author. Never sent to the other participant.
 export default function Notes({ conversationId }) {
-  const [notes, setNotes] = useState([]); const [text, setText] = useState(''); const [editing, setEditing] = useState(null); const [err, setErr] = useState('');
+  const confirm = useConfirm(); const [notes, setNotes] = useState([]); const [text, setText] = useState(''); const [editing, setEditing] = useState(null); const [err, setErr] = useState('');
   const load = () => api(`/conversations/${conversationId}/notes`).then((d) => setNotes(d.notes)).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [conversationId]);
   const save = async () => { if (!text.trim()) return; setErr('');
     try { editing ? await api(`/notes/${editing}`, { method: 'PATCH', body: { text } }) : await api(`/conversations/${conversationId}/notes`, { method: 'POST', body: { text } });
       setText(''); setEditing(null); load(); } catch (e) { setErr(e.message); } };
-  const del = async (id) => { if (confirm('Delete this note?')) { await api(`/notes/${id}`, { method: 'DELETE' }); load(); } };
+  const del = async (id) => { if (await confirm({ title: 'Delete this note?', confirmLabel: 'Delete', danger: true })) { await api(`/notes/${id}`, { method: 'DELETE' }); load(); } };
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted">🔒 Only you can see these notes.</p>

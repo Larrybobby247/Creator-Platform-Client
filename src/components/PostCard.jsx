@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Heart, MessageCircle, Gift, Lock, MoreHorizontal, Pin, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Gift, Lock, MoreHorizontal, Pin, Eye, BarChart3 } from 'lucide-react';
 import { Avatar, Badge, CreatorBadge, Err, Modal } from './ui.jsx';
 import PostMedia from './PostMedia.jsx';
 import CommentsModal from './CommentsModal.jsx';
+import RichText from './RichText.jsx';
+import PostInsights from './PostInsights.jsx';
+import { useConfirm } from './ConfirmDialog.jsx';
 import { api, ago } from '../lib/api';
 import { useLive } from '../context/Live.jsx';
 import { useAuth } from '../context/Auth.jsx';
@@ -37,7 +40,7 @@ function EditModal({ post, creator, onClose, onSaved }) {
 }
 
 function PostCard({ post, onGift, onChange }) {
-  const { user } = useAuth(); const { toast } = useLive(); const ask = useConfirmSpend(); const qc = useQueryClient();
+  const { user } = useAuth(); const { toast } = useLive(); const ask = useConfirmSpend(); const confirm = useConfirm(); const qc = useQueryClient(); const [insights, setInsights] = useState(false);
   const [p, setP] = useState(post); const [menu, setMenu] = useState(false); const [comments, setComments] = useState(false); const [edit, setEdit] = useState(false); const [report, setReport] = useState(false); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const ref = useRef();
   useEffect(() => setP(post), [post]); // adopt refreshed data (this is what makes an unlocked post actually open up)
   const a = p.authorId; const mine = a._id === user.id; const creatorMe = user.accountMode === 'CREATOR';
@@ -47,18 +50,23 @@ function PostCard({ post, onGift, onChange }) {
 
   const like = async () => { const was = p.liked; setP((x) => ({ ...x, liked: !was, likeCount: x.likeCount + (was ? -1 : 1) })); try { const d = await api(`/posts/${p._id}/like`, { method: 'POST' }); setP((x) => ({ ...x, liked: d.liked, likeCount: d.likeCount })); } catch { setP(post); } };
   const follow = async () => { const d = await api(`/follow/${a._id}`, { method: 'POST' }); setP({ ...p, following: d.following }); qc.invalidateQueries({ queryKey: ['suggestions'] }); };
-  const unlock = async () => {
-    if (!(await ask({ title: 'Unlock this post?', detail: `Unlock ${a.displayName || a.username}'s exclusive post.`, points: p.unlockPricePoints, confirmLabel: 'Unlock' }))) return;
+  const unlock = async (it) => { // it = one item of a multi-media post; no argument = legacy whole-post unlock
+    const legacy = !it || it.legacy; const price = legacy ? p.unlockPricePoints : it.pricePoints;
+    if (!(await ask({ title: legacy ? 'Unlock this post?' : 'Unlock this item?', detail: `Unlock ${a.displayName || a.username}'s exclusive ${legacy ? 'post' : it.mediaType === 'VIDEO' ? 'video' : 'photo'}.`, points: price, confirmLabel: 'Unlock' }))) return;
     setBusy(true); setErr('');
-    try { await api(`/media/posts/${p._id}/unlock`, { method: 'POST' }); window.dispatchEvent(new Event('wallet:changed')); await reload(); toast('Unlocked! Enjoy.'); }
+    try { await api(`/media/posts/${p._id}/unlock`, { method: 'POST', body: legacy ? undefined : { idx: it.idx } }); window.dispatchEvent(new Event('wallet:changed')); await reload(); toast('Unlocked! Enjoy.'); }
     catch (e) { setErr(e.code === 'INSUFFICIENT_POINTS' ? 'Not enough points. Top up in your wallet.' : e.message); } finally { setBusy(false); } };
+  const lockedPaid = (p.items || []).filter((i) => i.locked && i.access === 'EXCLUSIVE' && !i.legacy);
+  const unlockAll = async () => { const total = lockedPaid.reduce((n, i) => n + i.pricePoints, 0); if (!(await ask({ title: `Unlock all ${lockedPaid.length} items?`, detail: `Unlock every locked item in ${a.displayName || a.username}'s post.`, points: total, confirmLabel: 'Unlock all' }))) return;
+    setBusy(true); setErr(''); try { await api(`/media/posts/${p._id}/unlock`, { method: 'POST', body: { all: true } }); window.dispatchEvent(new Event('wallet:changed')); await reload(); toast('Unlocked! Enjoy.'); } catch (e) { setErr(e.code === 'INSUFFICIENT_POINTS' ? 'Not enough points. Top up in your wallet.' : e.message); } finally { setBusy(false); } };
+  const onLocked = (it) => (it.access === 'EXCLUSIVE' ? unlock(it) : subscribe());
   const subscribe = async () => {
     const price = a.subscriptionPricePoints; if (!price) return toast('Subscriptions are not available for this creator');
     if (!(await ask({ title: `Subscribe to ${a.displayName || a.username}?`, detail: 'Subscribers can see subscriber-only posts for 30 days.', points: price, confirmLabel: 'Subscribe' }))) return;
     setBusy(true); setErr(''); try { await api(`/subscriptions/${a._id}`, { method: 'POST' }); window.dispatchEvent(new Event('wallet:changed')); await reload(); toast('Subscribed!'); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const pin = async () => { setMenu(false); try { const d = await api(`/media/posts/${p._id}/pin`, { method: 'POST' }); toast(d.pinned ? 'Pinned to your profile' : 'Unpinned'); refresh(); qc.invalidateQueries({ queryKey: ['feed', 'profile'] }); } catch (e) { toast(e.message); } };
-  const del = async () => { setMenu(false); if (!confirm('Delete this post? This cannot be undone.')) return; try { await api(`/media/posts/${p._id}`, { method: 'DELETE' }); toast('Post deleted'); refresh(); qc.invalidateQueries({ queryKey: ['feed', 'profile'] }); } catch (e) { toast(e.message); } };
-  const block = async () => { setMenu(false); if (!confirm(`Block @${a.username}?`)) return; await api(`/block/${a._id}`, { method: 'POST' }); toast('Blocked'); refresh(); };
+  const del = async () => { setMenu(false); if (!(await confirm({ title: 'Delete this post?', detail: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return; try { await api(`/media/posts/${p._id}`, { method: 'DELETE' }); toast('Post deleted'); refresh(); qc.invalidateQueries({ queryKey: ['feed', 'profile'] }); } catch (e) { toast(e.message); } };
+  const block = async () => { setMenu(false); if (!(await confirm({ title: `Block @${a.username}?`, detail: 'You will no longer see each other’s posts or be able to message.', confirmLabel: 'Block', danger: true }))) return; await api(`/block/${a._id}`, { method: 'POST' }); toast('Blocked'); refresh(); };
 
   return <article ref={ref} className="card !p-4 space-y-3 animate-rise">
     <header className="flex items-center gap-3">
@@ -72,21 +80,23 @@ function PostCard({ post, onGift, onChange }) {
           {mine ? <>{p.status !== 'DRAFT' && !p.community && <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={pin}>{p.pinned ? 'Unpin from profile' : 'Pin to profile'}</button>}<button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setMenu(false); setEdit(true); }}>Edit</button><button className="block w-full text-left px-3 py-2 hover:bg-line text-bad" onClick={del}>Delete</button></>
             : <><button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setMenu(false); setReport(true); }}>Report</button><button className="block w-full text-left px-3 py-2 hover:bg-line text-bad" onClick={block}>Block user</button></>}</div>}</div>
     </header>
-    <PostMedia post={p} />
+    {(!p.locked || p.items?.[0]?.hasPreview) && <PostMedia post={p} onLocked={onLocked} />}
+    {lockedPaid.length > 1 && <button className="btn-ghost w-full !py-2 text-sm" disabled={busy} onClick={unlockAll}><Lock size={14} />Unlock all {lockedPaid.length} · {lockedPaid.reduce((n, i) => n + i.pricePoints, 0)} pts</button>}
     {p.locked ? <div className="relative rounded-card overflow-hidden bg-gradient-to-br from-violet/40 to-pink/30 p-8 grid place-items-center text-center min-h-[160px] bg-cover bg-center" style={p.coverUrl ? { backgroundImage: `url(${p.coverUrl})` } : undefined}>
         <div className="absolute inset-0 backdrop-blur-xl bg-bg/40" />
         <div className="relative space-y-2"><Lock className="mx-auto" /><p className="font-semibold">{p.access === 'EXCLUSIVE' ? 'Exclusive content' : 'Subscribers only'}</p>
-          {p.access === 'EXCLUSIVE' ? <button className="btn-primary" disabled={busy} onClick={unlock}>{busy ? 'Unlocking…' : `Unlock · ${p.unlockPricePoints} pts`}</button> : <button className="btn-primary" disabled={busy} onClick={subscribe}>{busy ? 'Please wait…' : `Subscribe${a.subscriptionPricePoints ? ` · ${a.subscriptionPricePoints} pts` : ''}`}</button>}</div></div>
-      : <div className="space-y-2 animate-fade">{p.content && <p className="whitespace-pre-wrap break-words">{p.content.split(/(#[\p{L}\p{N}_]{2,30})/gu).map((t, i) => t.startsWith('#') ? <Link key={i} to={`/topic/${t.slice(1).toLowerCase()}`} className="text-violet-light">{t}</Link> : t)}</p>}{p.exclusiveText && <p className="bg-card2 rounded-btn p-3 text-sm">{p.exclusiveText}</p>}</div>}
+          {p.access === 'EXCLUSIVE' ? <button className="btn-primary" disabled={busy} onClick={() => unlock()}>{busy ? 'Unlocking…' : `Unlock · ${p.unlockPricePoints} pts`}</button> : <button className="btn-primary" disabled={busy} onClick={subscribe}>{busy ? 'Please wait…' : `Subscribe${a.subscriptionPricePoints ? ` · ${a.subscriptionPricePoints} pts` : ''}`}</button>}</div></div>
+      : <div className="space-y-2 animate-fade">{p.content && <RichText text={p.content} />}{p.exclusiveText && <p className="bg-card2 rounded-btn p-3 text-sm">{p.exclusiveText}</p>}</div>}
     <Err>{err}</Err>
     <footer className="flex items-center gap-5 text-ink2 text-sm">
       <LikeButton liked={p.liked} count={p.likeCount} onClick={like} />
       <button onClick={() => setComments(true)} className="flex items-center gap-1" aria-label="Open comments"><MessageCircle size={18} />{p.commentCount}</button>
       {mine && p.viewCount !== undefined && <span className="flex items-center gap-1 text-xs"><Eye size={16} />{p.viewCount}</span>}
+      {mine && p.status !== 'DRAFT' && <button onClick={() => setInsights(true)} className="flex items-center gap-1 text-xs text-violet-light" aria-label="Post insights"><BarChart3 size={16} />Insights</button>}
       {!mine && a.accountMode === 'CREATOR' && <button onClick={() => onGift({ ...a, id: a._id })} className="flex items-center gap-1 ml-auto text-pink" aria-label="Send gift"><Gift size={18} />Gift</button>}
     </footer>
     {comments && <CommentsModal postId={p._id} open onClose={() => setComments(false)} onCountChange={(d) => setP((x) => ({ ...x, commentCount: Math.max(0, x.commentCount + d) }))} />}
-    {edit && <EditModal post={p} creator={creatorMe} onClose={() => setEdit(false)} onSaved={() => { reload(); refresh(); }} />}{report && <ReportModal post={p} onClose={() => setReport(false)} />}
+    {edit && <EditModal post={p} creator={creatorMe} onClose={() => setEdit(false)} onSaved={() => { reload(); refresh(); }} />}{report && <ReportModal post={p} onClose={() => setReport(false)} />}{insights && <PostInsights post={p} onClose={() => setInsights(false)} />}
   </article>;
 }
 export default memo(PostCard);

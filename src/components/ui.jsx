@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const hue = (s = '') => [...s].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
 export function Avatar({ user, size = 40 }) {
@@ -20,13 +21,15 @@ export function Section({ q, height = 'h-24', empty, isEmpty, children }) {
   return typeof children === 'function' ? children(q.data) : children;
 }
 export const Skeleton = ({ className = 'h-24' }) => <div className={`rounded-card bg-card animate-pulse ${className}`} />;
-export function Modal({ open, onClose, title, children }) {
-  useEffect(() => { if (!open) return; const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [open]);
+export function Modal({ open, onClose, title, children, wide }) {
+  useEffect(() => { if (!open) return; const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); const prev = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { window.removeEventListener('keydown', k); document.body.style.overflow = prev; }; }, [open]);
   if (!open) return null;
-  return <div className="fixed inset-0 z-40 grid items-end sm:place-items-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4 animate-fade" onClick={onClose}>
-    <div role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} className="bg-card border border-line rounded-t-modal sm:rounded-modal w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-5 animate-sheet" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
-      <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} aria-label="Close" className="text-ink2 text-xl px-2">×</button></div>{children}
-    </div></div>;
+  // Rendered into <body> so it always sits over the whole screen, whichever card or animated parent opened it.
+  return createPortal(<div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] sm:p-4 animate-fade" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} className={`bg-card border border-line rounded-t-modal sm:rounded-modal w-full ${wide ? 'sm:max-w-xl' : 'sm:max-w-md'} max-h-[88dvh] overflow-y-auto overscroll-contain animate-sheet`} style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+      <div className="sticky top-0 z-10 flex justify-between items-center px-5 py-3 bg-card border-b border-divider"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} aria-label="Close" className="text-ink2 text-2xl leading-none w-9 h-9 grid place-items-center rounded-full hover:bg-card2">×</button></div>
+      <div className="p-5">{children}</div>
+    </div></div>, document.body);
 }
 // Adds the "in" class once visible, which triggers CSS draw/grow/reveal animations.
 export function Reveal({ children, className = '', as: Tag = 'div' }) {
