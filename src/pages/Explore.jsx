@@ -6,7 +6,7 @@ import { Avatar, Badge, CreatorBadge, Empty, Skeleton, ErrorState } from '../com
 import SuggestedRow, { PersonCard } from '../components/Suggested.jsx';
 import { api } from '../lib/api';
 import { get, keys } from '../lib/query.js';
-const CATS = ['Music', 'Comedy', 'Fashion', 'Fitness', 'Food', 'Tech', 'Art', 'Travel'];
+const CATS = ['Personal', 'Music', 'Comedy', 'Fashion', 'Fitness', 'Food', 'Tech', 'Art', 'Travel'];
 function useDebounced(v, ms) { const [d, setD] = useState(v); useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]); return d; }
 const Head = ({ icon: I, children, to }) => <div className="flex items-center justify-between"><h2 className="font-semibold flex items-center gap-2"><I size={16} className="text-violet-light" />{children}</h2>{to && <Link to={to} className="text-xs text-violet-light">See all</Link>}</div>;
 const CommunityCard = ({ c }) => <Link to={`/communities/${c._id}`} className="card !p-3 flex items-center gap-3 animate-rise hover:border-violet"><span className="grid place-items-center w-10 h-10 rounded-full bg-gradient-to-br from-violet to-pink text-white font-bold">{c.name[0]}</span><span className="min-w-0 flex-1"><b className="block truncate text-sm">{c.name}</b><span className="text-xs text-muted">{c.memberCount} members{c.accessFeePoints > 0 && ` · ${c.accessFeePoints} pts`}</span></span><span className="text-violet-light text-sm">View</span></Link>;
@@ -18,9 +18,13 @@ export default function Explore() {
   const search = useQuery({ queryKey: ['search', dq], queryFn: ({ signal }) => api(`/search?q=${encodeURIComponent(dq)}`, { signal }), enabled: searching, placeholderData: keepPreviousData, staleTime: 60_000 }); // aborted when you keep typing
   const dir = useQuery({ queryKey: [...keys.explore('', cat), page], queryFn: ({ signal }) => api(`/explore?category=${cat}&page=${page}`, { signal }), placeholderData: keepPreviousData, staleTime: 60_000, enabled: !searching });
   const follow = async (c) => { await api(`/follow/${c._id}`, { method: 'POST' }); qc.invalidateQueries({ queryKey: ['explore'] }); qc.invalidateQueries({ queryKey: ['suggestions'] }); qc.invalidateQueries({ queryKey: ['feed'] }); };
+  const [focus, setFocus] = useState(false);
+  const tagQ = q.trim().replace(/^#/, ''); const dtag = useDebounced(tagQ, 200);
+  const tags = useQuery({ queryKey: ['hashtags', dtag], queryFn: ({ signal }) => api(`/hashtags?q=${encodeURIComponent(dtag)}`, { signal }), placeholderData: keepPreviousData, staleTime: 60_000, enabled: dtag.length > 0 || q.startsWith('#') || (focus && !q) });
   const s = search.data;
   return <div className="space-y-6"><h1 className="text-3xl font-bold">Explore</h1>
-    <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input !pl-9" placeholder="Search people, creators, communities and topics…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" /></div>
+    <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input !pl-9" placeholder="Search people, creators, communities and #hashtags…" value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 150)} aria-label="Search" />
+      {focus && tags.data?.tags?.length > 0 && <ul className="absolute z-20 left-0 right-0 mt-1 card !p-1 animate-fade" role="listbox" aria-label="Hashtag suggestions"><li className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted">{q.trim() ? 'Hashtag suggestions' : 'Popular hashtags'}</li>{tags.data.tags.map((t) => <li key={t.tag}><Link to={`/topic/${t.tag}`} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-2 px-3 py-2 rounded hover:bg-card2 text-sm"><Hash size={14} className="text-violet-light" /><b>{t.tag}</b><span className="text-xs text-muted ml-auto">{t.count} post{t.count === 1 ? '' : 's'}</span></Link></li>)}</ul>}</div>
     {searching ? <div className={`space-y-5 animate-tab ${search.isPlaceholderData ? 'opacity-60' : ''}`}>
       {search.isPending ? <Skeleton className="h-40" /> : search.isError ? <ErrorState error={search.error} onRetry={() => search.refetch()} /> : !s.people.length && !s.communities.length && !s.topics.length ? <Empty>No results for “{dq}”.</Empty> : <>
         {s.topics.length > 0 && <section className="space-y-2"><Head icon={Hash}>Topics</Head><div className="flex flex-wrap gap-2">{s.topics.map((t) => <Link key={t.tag} to={`/topic/${t.tag}`} className="chip border-line hover:border-violet">#{t.tag} <span className="text-muted">{t.count}</span></Link>)}</div></section>}

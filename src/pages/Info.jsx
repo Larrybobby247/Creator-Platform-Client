@@ -33,7 +33,7 @@ export const Terms = () => <Doc title="Terms & Conditions" draft>
   <h2>2. Points</h2><p>Points are in-app credit purchased with naira at the published rate. They are for use on the platform only, are not cash, and cannot be transferred or withdrawn. Refunds follow the rules shown at purchase and applicable law.</p>
   <h2>3. Creators and earnings</h2><p>Creators earn from sales after the platform fee shown in their dashboard. Withdrawals are processed after review and may require identity verification.</p>
   <h2>4. Content</h2><p>You own your content and grant us the licence needed to host and show it. You must not post unlawful, abusive, infringing or non-consensual content. We may remove content and suspend accounts that break these rules.</p>
-  <h2>5. Meetups</h2><p>Meetups are arranged between adults who choose to meet. The platform is not a party to any meeting, and you are responsible for your own safety and compliance with the law.</p>
+  <h2>5. Innercircle</h2><p>Innercircle bookings are arranged between adults who choose to meet. The platform is not a party to any meeting, and you are responsible for your own safety and compliance with the law.</p>
   <h2>6. Disputes and termination</h2><p>You can report content or bookings. We may suspend or end accounts for breaches. Nigerian law governs these terms.</p>
   <h2>7. Contact</h2><p>Use the Contact page for any questions.</p>
 </Doc>;
@@ -41,7 +41,7 @@ export const Terms = () => <Doc title="Terms & Conditions" draft>
 export const Privacy = () => <Doc title="Privacy Policy" draft>
   <p>Last updated: October 2026. This explains what we collect and why.</p>
   <h2>What we collect</h2><p>Account details (username, email, optional Google profile basics), content you post, messages, transactions, and technical data such as device and log information.</p>
-  <h2>Identity verification</h2><p>Creators who enable meetups complete identity verification with a third-party provider. We store only the verification status and provider reference, never your BVN.</p>
+  <h2>Identity verification</h2><p>Creators who enable Innercircle complete identity verification with a third-party provider. We store only the verification status and provider reference, never your BVN.</p>
   <h2>How we use data</h2><p>To run the service, process payments and payouts, prevent fraud and abuse, send notifications you opted into, and improve the product.</p>
   <h2>Sharing</h2><p>We share data with payment, verification and hosting providers who process it for us, and when the law requires. We do not sell personal data.</p>
   <h2>Your rights</h2><p>You can access, correct or delete your data, and withdraw consent, by contacting us. We keep records we are legally required to retain, such as financial transactions.</p>

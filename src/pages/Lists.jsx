@@ -59,7 +59,7 @@ export function Meetups({ asCreator = false }) {
   const load = () => api(`/meetups/me?as=${as}`).then((d) => setItems(d.items)); useEffect(() => { setItems(null); load(); }, [as]);
   const act = async (id, a) => { try { await api(`/meetups/${id}/${a}`, { method: 'POST' }); load(); } catch (e) { toast(e.message); } };
   const btn = (id, a, label, primary) => <button key={a} className={primary ? 'btn-primary !py-2' : 'btn-ghost !py-2'} onClick={() => act(id, a)}>{label}</button>;
-  return <div className="space-y-4">{!asCreator && <h1 className="text-3xl font-bold">Meetups</h1>}
+  return <div className="space-y-4">{!asCreator && <h1 className="text-3xl font-bold">Innercircle</h1>}
     {!asCreator && <div className="flex gap-2">{['user', 'creator'].map((k) => <button key={k} onClick={() => setAs(k)} className={`chip ${as === k ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{k === 'user' ? 'My bookings' : 'Received'}</button>)}</div>}
     {!items ? <Skeleton /> : items.length === 0 ? <Empty>No bookings.</Empty> : items.map((b) => { const idx = STEPS.indexOf(b.status); const cr = as === 'creator'; return <div key={b._id} className="card space-y-3 text-sm">
       <div className="flex justify-between"><b>{cr ? b.userId?.username : b.creatorId?.username}</b><span>{new Date(b.slotAt).toLocaleString()}</span></div>
@@ -70,7 +70,7 @@ export function Meetups({ asCreator = false }) {
         {cr && b.status === 'PAID_AND_RESERVED' && [btn(b._id, 'accept', 'Accept', true), btn(b._id, 'reject', 'Reject')]}
         {cr && b.status === 'CREATOR_ACCEPTED' && btn(b._id, 'confirm', 'Confirm details', true)}
         {cr && b.status === 'USER_ACCEPTED' && btn(b._id, 'complete', 'Mark completed', true)}
-        {!cr && b.status === 'MEETUP_PENDING_USER_ACCEPTANCE' && btn(b._id, 'user-accept', 'Accept meetup', true)}
+        {!cr && b.status === 'MEETUP_PENDING_USER_ACCEPTANCE' && btn(b._id, 'user-accept', 'Accept booking', true)}
         {!cr && ['PAID_AND_RESERVED', 'CREATOR_ACCEPTED', 'MEETUP_PENDING_USER_ACCEPTANCE'].includes(b.status) && btn(b._id, 'cancel', 'Cancel')}
         {!cr && ['USER_ACCEPTED', 'COMPLETED'].includes(b.status) && btn(b._id, 'dispute', 'Report a problem')}</div></div>; })}</div>;
 }

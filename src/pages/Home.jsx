@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowUp } from 'lucide-react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import PostCard from '../components/PostCard.jsx';
 import GiftModal from '../components/GiftModal.jsx';
@@ -15,12 +16,17 @@ export default function Home() {
   const feed = useInfiniteQuery({ queryKey: keys.feed(tab), initialPageParam: '', queryFn: ({ pageParam, signal }) => api(`/feed?tab=${tab}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`, { signal }), getNextPageParam: (l) => l.nextCursor || undefined, staleTime: 30_000 });
   const trending = useQuery({ queryKey: ['trending'], queryFn: get('/trending'), staleTime: 5 * 60_000, enabled: tab === 'communities' });
   const refetch = useCallback(() => qc.invalidateQueries({ queryKey: ['feed'] }), [qc]);
-  const sentinel = useRef();
+  const sentinel = useRef(); const [atEnd, setAtEnd] = useState(false); const [refreshing, setRefreshing] = useState(false);
   useEffect(() => { const el = sentinel.current; if (!el) return; const o = new IntersectionObserver(([e]) => e.isIntersecting && feed.hasNextPage && !feed.isFetchingNextPage && feed.fetchNextPage(), { rootMargin: '500px' }); o.observe(el); return () => o.disconnect(); }, [feed.hasNextPage, feed.isFetchingNextPage, feed.fetchNextPage]);
+  // Once the reader has scrolled to the very end, a pill appears at the top to pull in the newest posts.
+  useEffect(() => { const el = sentinel.current; if (!el) return; const o = new IntersectionObserver(([e]) => e.isIntersecting && !feed.hasNextPage && feed.data && setAtEnd(true)); o.observe(el); return () => o.disconnect(); }, [feed.hasNextPage, feed.data]);
+  useEffect(() => setAtEnd(false), [tab]);
+  const refresh = async () => { setRefreshing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); try { await qc.resetQueries({ queryKey: keys.feed(tab) }); qc.invalidateQueries({ queryKey: ['stories'] }); } finally { setRefreshing(false); setAtEnd(false); } };
   const choose = (k, e) => { setTab(k); e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); };
   const posts = feed.data?.pages.flatMap((p) => p.posts) || [];
   const empty = tab === 'following' ? 'Follow people on Explore to fill your feed.' : tab === 'communities' ? 'Join communities to see their posts here.' : 'No posts yet.';
   return <div className="space-y-4">
+    {atEnd && <div className="fixed top-16 inset-x-0 z-30 flex justify-center pointer-events-none lg:pl-60"><button onClick={refresh} disabled={refreshing} className="pointer-events-auto btn-primary !py-2 !px-4 text-sm shadow-lg animate-[slide_.25s_ease-out]"><ArrowUp size={16} className={refreshing ? 'animate-bounce' : ''} />{refreshing ? 'Refreshing…' : 'Refresh for recent posts'}</button></div>}
     <StoryBar />
     <div ref={tabsRef} className="flex border-b border-divider overflow-x-auto no-scrollbar snap-x" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={(e) => choose(k, e)} className={`shrink-0 snap-center px-5 py-3 text-sm font-medium border-b-2 ${tab === k ? 'border-violet text-ink' : 'border-transparent text-ink2 hover:text-ink'}`}>{l}</button>)}</div>
     <div key={tab} className="space-y-4 animate-tab">
