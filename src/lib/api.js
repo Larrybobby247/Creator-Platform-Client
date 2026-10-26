@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.PROD
+export const API_BASE_URL = import.meta.env.PROD
   ? "https://creator-server-hdsk.onrender.com"
   : "";
 
@@ -12,8 +12,6 @@ export async function api(
     : `/${path}`;
 
   const url = `${API_BASE_URL}/api${normalizedPath}`;
-
-  console.log("[API] Request URL:", url);
 
   const r = await fetch(url, {
     method,
