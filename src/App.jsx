@@ -24,6 +24,8 @@ const Profile = lazy(() => import('./pages/Profile.jsx'));
 const Studio = lazy(() => import('./pages/Studio.jsx'));
 const Topic = lazy(() => import('./pages/Topic.jsx'));
 const Insights = lazy(() => import('./pages/Insights.jsx'));
+const BecomeCreator = lazy(() => import('./pages/BecomeCreator.jsx'));
+const Report = lazy(() => import('./pages/Report.jsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const L = (n) => lazy(() => import('./pages/Lists.jsx').then((m) => ({ default: m[n] })));
@@ -45,6 +47,7 @@ export default function App() {
     <Route path="/messages" element={app(<Messages />)} /><Route path="/wallet" element={app(<Wallet />)} /><Route path="/u/:username" element={app(<Profile />)} />
     <Route path="/studio" element={app(<Studio />)} /><Route path="/topic/:tag" element={app(<Topic />)} /><Route path="/insights" element={app(<Insights />)} /><Route path="/notifications" element={app(<Notifications />)} />
     <Route path="/settings" element={app(<Settings />)} /><Route path="/communities" element={app(<Communities />)} /><Route path="/communities/:id" element={app(<CommunityPage />)} />
+    <Route path="/become-creator" element={app(<BecomeCreator />)} /><Route path="/report" element={app(<Report />)} /><Route path="/innercircle" element={app(<Meetups />)} />
     <Route path="/referrals" element={app(<Referrals />)} /><Route path="/requests" element={app(<Requests />)} /><Route path="/meetups" element={app(<Meetups />)} /><Route path="/subscriptions" element={app(<Subscriptions />)} />
     <Route path="*" element={<Navigate to="/" />} />
   </Routes></Suspense>;

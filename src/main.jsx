@@ -7,5 +7,6 @@ import App from './App.jsx';
 import { AuthProvider } from './context/Auth.jsx';
 import { LiveProvider } from './context/Live.jsx';
 import { ConfirmSpendProvider } from './components/ConfirmSpend.jsx';
+import { ConfirmProvider } from './components/ConfirmDialog.jsx';
 import { queryClient } from './lib/query.js';
-createRoot(document.getElementById('root')).render(<QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><LiveProvider><ConfirmSpendProvider><App /></ConfirmSpendProvider></LiveProvider></AuthProvider></BrowserRouter></QueryClientProvider>);
+createRoot(document.getElementById('root')).render(<QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><LiveProvider><ConfirmSpendProvider><ConfirmProvider><App /></ConfirmProvider></ConfirmSpendProvider></LiveProvider></AuthProvider></BrowserRouter></QueryClientProvider>);
