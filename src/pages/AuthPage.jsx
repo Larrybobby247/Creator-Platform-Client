@@ -37,7 +37,7 @@ export default function AuthPage({ mode }) {
   }, [cfg, signup]);
 
   const submit = async (e) => { e.preventDefault(); setBusy(true); setErr('');
-    try { const d = await api(`/auth/${mode}`, { method: 'POST', body: signup ? { ...f, acceptTerms: terms, ref } : f });
+    try { const d = await api(`/auth/${signup ? 'register' : 'login'}`, { method: 'POST', body: signup ? { ...f, acceptTerms: terms, ref } : f });
       if (d.pendingVerification) { setMailFailed(d.emailSent === false); return setPending(d.email); } // no session until the email is verified
       setUser(d.user); nav(safeNext(q.get('next'))); }
     catch (x) { if (x.code === 'EMAIL_NOT_VERIFIED') setUnverified(x.data?.email || f.email); setErr(x.message); } finally { setBusy(false); } };
