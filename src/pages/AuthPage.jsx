@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { safeNext } from '../lib/next.js';
 import { PublicPage } from '../components/PublicShell.jsx';
 import { Err } from '../components/ui.jsx';
 import { api } from '../lib/api';
@@ -17,7 +18,7 @@ export default function AuthPage({ mode }) {
   const { setUser } = useAuth(); const nav = useNavigate(); const [q] = useSearchParams();
   const signup = mode === 'signup';
   const [f, setF] = useState({}); const [terms, setTerms] = useState(false); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
-  const [pending, setPending] = useState(null); const [unverified, setUnverified] = useState(null); const [cfg, setCfg] = useState(null); const gRef = useRef(); const termsRef = useRef(false); termsRef.current = terms;
+  const [pending, setPending] = useState(null); const [mailFailed, setMailFailed] = useState(false); const [unverified, setUnverified] = useState(null); const [cfg, setCfg] = useState(null); const gRef = useRef(); const termsRef = useRef(false); termsRef.current = terms;
   const ref = q.get('ref') || localStorage.getItem('ref') || undefined;
   useEffect(() => { if (q.get('ref')) localStorage.setItem('ref', q.get('ref')); }, []);
   useEffect(() => { api('/auth/config').then(setCfg).catch(() => {}); }, []);
@@ -27,7 +28,7 @@ export default function AuthPage({ mode }) {
     const init = () => {
       window.google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: async ({ credential }) => {
         setErr('');
-        try { const d = await api('/auth/google', { method: 'POST', body: { credential, acceptTerms: termsRef.current, ref } }); setUser(d.user); nav('/home'); }
+        try { const d = await api('/auth/google', { method: 'POST', body: { credential, acceptTerms: termsRef.current, ref } }); setUser(d.user); nav(safeNext(q.get('next'))); }
         catch (e) { setErr(e.message); } } });
       window.google.accounts.id.renderButton(gRef.current, { theme: 'filled_black', size: 'large', width: 320, text: signup ? 'signup_with' : 'signin_with' });
     };
@@ -37,14 +38,14 @@ export default function AuthPage({ mode }) {
 
   const submit = async (e) => { e.preventDefault(); setBusy(true); setErr('');
     try { const d = await api(`/auth/${mode}`, { method: 'POST', body: signup ? { ...f, acceptTerms: terms, ref } : f });
-      if (d.pendingVerification) return setPending(d.email); // no session until the email is verified
-      setUser(d.user); nav('/home'); }
+      if (d.pendingVerification) { setMailFailed(d.emailSent === false); return setPending(d.email); } // no session until the email is verified
+      setUser(d.user); nav(safeNext(q.get('next'))); }
     catch (x) { if (x.code === 'EMAIL_NOT_VERIFIED') setUnverified(x.data?.email || f.email); setErr(x.message); } finally { setBusy(false); } };
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const locked = signup && !terms;
 
   if (pending) return <PublicPage><div className="grid place-items-center px-4 py-10"><div className="card w-full max-w-sm space-y-4 text-center"><div className="text-5xl">📧</div><h1 className="text-2xl font-bold">Check your email</h1>
-    <p className="text-ink2 text-sm">We sent a verification link to <b className="text-ink">{pending}</b>. Open it to activate your account, then log in. The link works for 24 hours.</p><ResendForm initialEmail={pending} /><Link to="/login" className="btn-primary w-full">I've verified, log in</Link></div></div></PublicPage>;
+    {mailFailed && <p role="alert" className="text-warn text-sm">Your account was created, but the email could not be sent right now. Tap Resend below in a minute.</p>}<p className="text-ink2 text-sm">We sent a verification link to <b className="text-ink">{pending}</b>. Open it to activate your account, then log in. The link works for 24 hours.</p><ResendForm initialEmail={pending} /><Link to="/login" className="btn-primary w-full">I've verified, log in</Link></div></div></PublicPage>;
   return <PublicPage><div className="grid place-items-center px-4 py-10"><div className="card w-full max-w-sm space-y-4">
     <h1 className="text-2xl font-bold">{signup ? 'Create your account' : 'Welcome back'}</h1>
     {signup && <Toggle on={terms} onChange={setTerms}>I am 18+ and agree to the <Link to="/terms" target="_blank" className="text-violet-light underline">Terms</Link> and <Link to="/privacy" target="_blank" className="text-violet-light underline">Privacy Policy</Link>.</Toggle>}

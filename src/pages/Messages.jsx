@@ -48,7 +48,9 @@ export default function Messages() {
       if (c) return setOpen(c); const u = await api(`/creators/${to}`).catch(() => null); if (u) setOpen({ draft: true, policy: u.creator.dmPolicy && u.creator.accountMode === 'CREATOR' ? u.creator.dmPolicy : null, participants: [{ _id: user.id }, { _id: to, username: u.creator.username, displayName: u.creator.displayName, avatarUrl: u.creator.avatarUrl }] }); }); }, [sp]);
   const openConv = useCallback(async (c) => { if (c.draft) { setMsgs([]); return; } const d = await api(`/messages/${c._id}`); setMsgs(d.messages); setHasMore(!!d.hasMore); setSeen(false); refreshCounts(); loadList(); }, []);
   useEffect(() => { if (open) { setTab('chat'); setReply(null); openConv(open); } }, [open?._id]);
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs.length, typing]);
+  // Only the message list scrolls: the page behind is locked while a chat is open and we scroll the list itself (scrollIntoView used to scroll the whole page and push the header away).
+  useEffect(() => { const el = bottom.current?.parentElement; el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }, [msgs.length, typing]);
+  useEffect(() => { if (!open) return; const prev = document.body.style.overflow; window.scrollTo(0, 0); document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = prev; }; }, [!!open]);
   // Safety net: if the live connection drops, new messages still arrive within a few seconds without leaving the chat.
   useEffect(() => { if (!open || open.draft) return; const t = setInterval(async () => { if (document.hidden) return; try { const d = await api(`/messages/${open._id}`); setMsgs((cur) => { const pend = cur.filter((x) => x.pending || x.failed); const known = new Set(d.messages.map((x) => x._id)); const first = d.messages[0] ? new Date(d.messages[0].createdAt) : new Date(0); const older = cur.filter((x) => !x.pending && !x.failed && !known.has(x._id) && new Date(x.createdAt) < first); return [...older, ...d.messages, ...pend.filter((x) => !known.has(x._id))]; }); refreshCounts(); } catch { /* retry next tick */ } }, 6000); return () => clearInterval(t); }, [open?._id]);
   const [opOnline, setOpOnline] = useState(null);
@@ -109,8 +111,8 @@ export default function Messages() {
   const act = async (a) => { await api(`/messages/${open._id}/${a}`, { method: 'POST' }); if (a === 'archive' || a === 'unarchive') { setOpen(null); toast(a === 'archive' ? 'Archived' : 'Moved back to your inbox'); } loadList(); };
 
   if (open) { const o = other(open); const isOn = presence?.[o._id] ?? opOnline ?? open.online; const archived = cat === 'archived' || (open.archivedBy || []).includes(user.id); const lastMine = [...msgs].reverse().find((m) => m.senderId === user.id); const byId = Object.fromEntries(msgs.map((m) => [m._id, m]));
-    return <div className="flex flex-col h-[calc(100dvh-9.5rem)] lg:h-[calc(100dvh-6.5rem)]">
-      <div className="flex items-center gap-3 pb-3 border-b border-divider">
+    return <div className="flex flex-col h-[calc(100dvh-9.5rem)] lg:h-[calc(100dvh-6.5rem)] overflow-hidden">
+      <div className="flex items-center gap-3 pb-3 border-b border-divider shrink-0 bg-bg">
         <button className="btn-ghost !px-3" onClick={() => { setOpen(null); loadList(); }} aria-label="Back">←</button>
         <span className="relative shrink-0"><Avatar user={o} size={36} />{isOn && <i className="absolute bottom-0 right-0 w-3 h-3 bg-ok rounded-full ring-2 ring-bg" />}</span><div className="flex-1 min-w-0"><Link to={`/u/${o.username}`} className="font-semibold truncate block">{o.displayName || o.username}</Link><p className={`text-xs ${typing || isOn ? 'text-ok' : 'text-muted'}`}>{typing ? 'typing…' : isOn ? 'online' : ''}</p></div>
         {!open.draft && <><div className="relative"><button className="btn-ghost !px-3" onClick={() => setLabelMenu(!labelMenu)} aria-label="Categories" aria-expanded={labelMenu}>🏷️</button>{labelMenu && <div className="absolute right-0 top-full mt-1 z-20 w-60 card !p-2 space-y-1 animate-fade"><p className="text-xs text-muted px-2 pt-1">Category for {o.displayName || o.username}</p>
@@ -123,7 +125,7 @@ export default function Messages() {
         {open.draft && open.policy?.mode === 'PAID' && <p className="text-xs text-muted my-2">This creator charges {open.policy.pricePoints} pts to start a conversation (free for subscribers). You'll be asked to confirm when you send.</p>}
         {open.draft && open.policy?.mode === 'SUBSCRIBERS' && <p className="text-xs text-muted my-2">Only subscribers can message this creator.</p>}
         {open.accepted === false && open.requestedBy !== user.id && <div className="card !p-3 my-2 text-sm flex items-center justify-between gap-2">Message request <button className="btn-primary !py-2" onClick={() => act('accept')}>Accept</button></div>}
-        <div className="flex-1 overflow-y-auto py-4 space-y-2">
+        <div className="flex-1 min-h-0 overflow-y-auto py-4 space-y-2">
           {hasMore && <button className="btn-ghost !py-1.5 mx-auto block" onClick={loadEarlier}>Load earlier messages</button>}
           {msgs.length === 0 && <Empty>Say hi 👋</Empty>}
           {msgs.map((m) => { const mine = m.senderId === user.id; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });

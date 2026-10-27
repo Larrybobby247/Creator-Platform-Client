@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Hash, Users, Search } from 'lucide-react';
 import { Avatar, Badge, CreatorBadge, Empty, Skeleton, ErrorState } from '../components/ui.jsx';
-import SuggestedRow, { PersonCard } from '../components/Suggested.jsx';
+import SuggestedRow, { PersonCard, patchFollow } from '../components/Suggested.jsx';
 import { api } from '../lib/api';
 import { get, keys } from '../lib/query.js';
 const CATS = ['Personal', 'Music', 'Comedy', 'Fashion', 'Fitness', 'Food', 'Tech', 'Art', 'Travel'];
@@ -17,7 +17,7 @@ export default function Explore() {
   const trending = useQuery({ queryKey: ['trending'], queryFn: get('/trending'), staleTime: 5 * 60_000 });
   const search = useQuery({ queryKey: ['search', dq], queryFn: ({ signal }) => api(`/search?q=${encodeURIComponent(dq)}`, { signal }), enabled: searching, placeholderData: keepPreviousData, staleTime: 60_000 }); // aborted when you keep typing
   const dir = useQuery({ queryKey: [...keys.explore('', cat), page], queryFn: ({ signal }) => api(`/explore?category=${cat}&page=${page}`, { signal }), placeholderData: keepPreviousData, staleTime: 60_000, enabled: !searching });
-  const follow = async (c) => { await api(`/follow/${c._id}`, { method: 'POST' }); qc.invalidateQueries({ queryKey: ['explore'] }); qc.invalidateQueries({ queryKey: ['suggestions'] }); qc.invalidateQueries({ queryKey: ['feed'] }); };
+  const follow = async (c) => { const d = await api(`/follow/${c._id}`, { method: 'POST' }); patchFollow(qc, c._id, d.following); qc.invalidateQueries({ queryKey: ['feed'] }); };
   const [focus, setFocus] = useState(false);
   const tagQ = q.trim().replace(/^#/, ''); const dtag = useDebounced(tagQ, 200);
   const tags = useQuery({ queryKey: ['hashtags', dtag], queryFn: ({ signal }) => api(`/hashtags?q=${encodeURIComponent(dtag)}`, { signal }), placeholderData: keepPreviousData, staleTime: 60_000, enabled: dtag.length > 0 || q.startsWith('#') || (focus && !q) });
@@ -28,7 +28,7 @@ export default function Explore() {
     {searching ? <div className={`space-y-5 animate-tab ${search.isPlaceholderData ? 'opacity-60' : ''}`}>
       {search.isPending ? <Skeleton className="h-40" /> : search.isError ? <ErrorState error={search.error} onRetry={() => search.refetch()} /> : !s.people.length && !s.communities.length && !s.topics.length ? <Empty>No results for “{dq}”.</Empty> : <>
         {s.topics.length > 0 && <section className="space-y-2"><Head icon={Hash}>Topics</Head><div className="flex flex-wrap gap-2">{s.topics.map((t) => <Link key={t.tag} to={`/topic/${t.tag}`} className="chip border-line hover:border-violet">#{t.tag} <span className="text-muted">{t.count}</span></Link>)}</div></section>}
-        {s.people.length > 0 && <section className="space-y-2"><Head icon={Users}>People</Head>{s.people.map((p) => <div key={p._id} className="card !p-3 flex items-center gap-3 animate-rise"><Link to={`/u/${p.username}`}><Avatar user={p} /></Link><Link to={`/u/${p.username}`} className="min-w-0 flex-1"><b className="flex items-center gap-1.5 text-sm truncate">{p.displayName || p.username}{p.accountMode === 'CREATOR' && <CreatorBadge small />}</b><span className="text-xs text-muted">@{p.username}</span></Link><button onClick={async () => { await api(`/follow/${p._id}`, { method: 'POST' }); search.refetch(); }} className={`chip ${p.following ? 'border-line text-ink2' : 'border-violet text-violet-light'}`}>{p.following ? 'Following' : 'Follow'}</button></div>)}</section>}
+        {s.people.length > 0 && <section className="space-y-2"><Head icon={Users}>People</Head>{s.people.map((p) => <div key={p._id} className="card !p-3 flex items-center gap-3 animate-rise"><Link to={`/u/${p.username}`}><Avatar user={p} /></Link><Link to={`/u/${p.username}`} className="min-w-0 flex-1"><b className="flex items-center gap-1.5 text-sm truncate">{p.displayName || p.username}{p.accountMode === 'CREATOR' && <CreatorBadge small />}</b><span className="text-xs text-muted">@{p.username}</span></Link><button onClick={async () => { const d = await api(`/follow/${p._id}`, { method: 'POST' }); patchFollow(qc, p._id, d.following); }} className={`chip ${p.following ? 'border-line text-ink2' : 'border-violet text-violet-light'}`}>{p.following ? 'Following' : 'Follow'}</button></div>)}</section>}
         {s.communities.length > 0 && <section className="space-y-2"><Head icon={Users}>Communities</Head>{s.communities.map((c) => <CommunityCard key={c._id} c={c} />)}</section>}</>}</div>
     : <div className="space-y-6 animate-tab">
       <section className="space-y-2"><Head icon={Hash}>Trending topics</Head>{trending.isPending ? <Skeleton className="h-10" /> : trending.data?.topics.length ? <div className="flex flex-wrap gap-2">{trending.data.topics.map((t, i) => <Link key={t.tag} to={`/topic/${t.tag}`} className="chip border-line hover:border-violet animate-rise" style={{ animationDelay: `${i * 30}ms` }}><span className="text-violet-light">#</span>{t.tag} <span className="text-muted text-xs">{t.count}</span></Link>)}</div> : <p className="text-sm text-muted">Topics appear here as people use #hashtags.</p>}</section>
