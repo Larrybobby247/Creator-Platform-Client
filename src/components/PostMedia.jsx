@@ -9,10 +9,10 @@ const Tag = ({ it, mixed }) => it.locked ? <span className="absolute top-2 left-
   : it.access === 'PUBLIC' ? (mixed ? <span className="absolute top-2 left-2 z-10 text-[11px] font-semibold bg-ok/90 text-black rounded-full px-2 py-1">Free</span> : null)
   : <span className="absolute top-2 left-2 z-10 flex items-center gap-1 text-[11px] font-semibold bg-violet/90 rounded-full px-2 py-1"><Crown size={11} />{it.access === 'EXCLUSIVE' ? 'Unlocked' : 'Subscriber'}</span>;
 
-function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, register }) {
+function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, register, publicMode }) {
   const legacyPreview = it.locked && it.hasPreview;
-  const path = it.legacy ? (it.locked ? `/media/posts/${post._id}/preview` : `/media/posts/${post._id}/playback`) : `/media/posts/${post._id}/media/${it.idx}`;
-  const q = useQuery({ queryKey: ['media', post._id, it.idx, it.locked], queryFn: get(path), enabled: near && (!it.locked || legacyPreview), staleTime: 4 * 60_000, retry: false });
+  const path = publicMode ? `/public/posts/${post._id}/media/${it.idx}` : it.legacy ? (it.locked ? `/media/posts/${post._id}/preview` : `/media/posts/${post._id}/playback`) : `/media/posts/${post._id}/media/${it.idx}`;
+  const q = useQuery({ queryKey: ['media', post._id, it.idx, it.locked], queryFn: get(path), enabled: near && (!it.locked || (legacyPreview && !publicMode)), staleTime: 4 * 60_000, retry: false });
   const url = q.data?.url; const video = it.mediaType === 'VIDEO';
   useEffect(() => { if (url && !it.locked) register(it.idx, { url, type: it.mediaType }); }, [url, it.locked]);
   const h = single ? 'max-h-[420px] min-h-[12rem]' : 'h-44 sm:h-56';
@@ -29,7 +29,7 @@ function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, regis
 
 // Up to 4 items in a responsive grid (1 full width; 2 = two columns; 3 = two + one full-width row; 4 = 2x2), each with a max height.
 // Clicking an open item opens the full-screen viewer; clicking a locked one starts the unlock / subscribe flow.
-export default function PostMedia({ post, onLocked }) {
+export default function PostMedia({ post, onLocked, publicMode = false }) {
   const items = post.items || []; const ref = useRef(); const [near, setNear] = useState(false); const [viewer, setViewer] = useState(null); const urls = useRef({});
   useEffect(() => { if (!items.length) return; const o = new IntersectionObserver(([e]) => e.isIntersecting && (setNear(true), o.disconnect()), { rootMargin: '600px' }); o.observe(ref.current); return () => o.disconnect(); }, [items.length]);
   if (!items.length) return null;
@@ -37,7 +37,7 @@ export default function PostMedia({ post, onLocked }) {
   const register = (idx, v) => { urls.current[idx] = v; };
   const open = (it) => { const list = items.filter((x) => !x.locked && urls.current[x.idx]).map((x) => ({ ...urls.current[x.idx], idx: x.idx })); setViewer({ list, start: Math.max(0, list.findIndex((x) => x.idx === it.idx)) }); };
   return <div ref={ref} className={`grid gap-1.5 ${GRID[items.length] || 'grid-cols-2'}`}>
-    {items.map((it) => <Cell key={it.idx} post={post} it={it} single={items.length === 1} mixed={mixed} near={near} spanFull={items.length === 3 && it.idx === 2} onOpen={open} onLocked={onLocked} register={register} />)}
+    {items.map((it) => <Cell key={it.idx} post={post} it={it} single={items.length === 1} mixed={mixed} near={near} spanFull={items.length === 3 && it.idx === 2} onOpen={open} onLocked={onLocked} register={register} publicMode={publicMode} />)}
     {viewer && <MediaViewer items={viewer.list} start={viewer.start} onClose={() => setViewer(null)} />}
   </div>;
 }
