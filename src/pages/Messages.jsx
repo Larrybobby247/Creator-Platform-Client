@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -111,8 +112,9 @@ export default function Messages() {
   const act = async (a) => { await api(`/messages/${open._id}/${a}`, { method: 'POST' }); if (a === 'archive' || a === 'unarchive') { setOpen(null); toast(a === 'archive' ? 'Archived' : 'Moved back to your inbox'); } loadList(); };
 
   if (open) { const o = other(open); const isOn = presence?.[o._id] ?? opOnline ?? open.online; const archived = cat === 'archived' || (open.archivedBy || []).includes(user.id); const lastMine = [...msgs].reverse().find((m) => m.senderId === user.id); const byId = Object.fromEntries(msgs.map((m) => [m._id, m]));
-    return <div className="flex flex-col h-[calc(100dvh-9.5rem)] lg:h-[calc(100dvh-6.5rem)] overflow-hidden">
-      <div className="flex items-center gap-3 pb-3 border-b border-divider shrink-0 bg-bg">
+    // The open chat is its own full-screen panel (rendered into <body>, outside the scrolling page): the top bar with the name, Notes etc. is fixed, only the messages scroll.
+    return createPortal(<div className="fixed inset-0 lg:left-60 z-40 bg-bg"><div className="mx-auto w-full max-w-3xl h-full flex flex-col px-4" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="flex items-center gap-3 py-3 border-b border-divider shrink-0 bg-bg">
         <button className="btn-ghost !px-3" onClick={() => { setOpen(null); loadList(); }} aria-label="Back">←</button>
         <span className="relative shrink-0"><Avatar user={o} size={36} />{isOn && <i className="absolute bottom-0 right-0 w-3 h-3 bg-ok rounded-full ring-2 ring-bg" />}</span><div className="flex-1 min-w-0"><Link to={`/u/${o.username}`} className="font-semibold truncate block">{o.displayName || o.username}</Link><p className={`text-xs ${typing || isOn ? 'text-ok' : 'text-muted'}`}>{typing ? 'typing…' : isOn ? 'online' : ''}</p></div>
         {!open.draft && <><div className="relative"><button className="btn-ghost !px-3" onClick={() => setLabelMenu(!labelMenu)} aria-label="Categories" aria-expanded={labelMenu}>🏷️</button>{labelMenu && <div className="absolute right-0 top-full mt-1 z-20 w-60 card !p-2 space-y-1 animate-fade"><p className="text-xs text-muted px-2 pt-1">Category for {o.displayName || o.username}</p>
@@ -155,7 +157,7 @@ export default function Messages() {
           {user.accountMode === 'CREATOR' && <button type="button" className="btn-ghost !px-3" aria-label="Send paid message" onClick={() => setPaid(true)}>💰</button>}</form>}</>}
       <Modal open={paid} onClose={() => setPaid(false)} title="Paid message"><div className="space-y-3"><input className="input" placeholder="Teaser the buyer sees first" value={pf.teaser} onChange={(e) => setPf({ ...pf, teaser: e.target.value })} /><textarea className="input min-h-[90px]" placeholder="Hidden message (revealed after payment)" value={pf.paidText} onChange={(e) => setPf({ ...pf, paidText: e.target.value })} /><label className="block text-sm">Price (points)<input type="number" min={1} className="input mt-1" value={pf.price} onChange={(e) => setPf({ ...pf, price: e.target.value })} /></label><button className="btn-primary w-full" disabled={!pf.paidText} onClick={sendPaid}>Send · {pf.price} pts</button><p className="text-xs text-muted">To sell a photo, video or voice note, just attach it: you will be asked whether it is free or paid.</p></div></Modal>
     {pricing && <PricePrompt title={pricing.file.type.startsWith('audio') ? 'Voice message: free or paid?' : 'Free or paid?'} noun={pricing.file.type.startsWith('audio') ? 'this voice message' : 'this file'} defaultPrice={user.services?.paidVoice?.pricePoints || 3} onClose={() => setPricing(null)} onDone={({ price }) => { const f = pricing.file; setPricing(null); sendFile(f, price > 0 ? { price } : {}); }} />}
-    </div>; }
+    </div></div>, document.body); }
 
   return <div className="space-y-4"><h1 className="text-3xl font-bold">Messages</h1>
     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1" role="tablist">{baseCats(creator).map(([k, l]) => <button key={k} role="tab" aria-selected={cat === k} onClick={() => setCat(k)} className={`chip ${cat === k ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{l}</button>)}

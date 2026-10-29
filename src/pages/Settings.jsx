@@ -8,6 +8,7 @@ import { api, fmtPoints } from '../lib/api';
 import { get } from '../lib/query.js';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
+import InstallApp from '../components/InstallApp.jsx';
 import { useConfirmSpend } from '../components/ConfirmSpend.jsx';
 
 const Sec = ({ title, children }) => <section className="card space-y-3 animate-rise"><h2 className="text-lg font-semibold">{title}</h2>{children}</section>;
@@ -78,6 +79,7 @@ export default function Settings() {
       <div className="space-y-2"><label className="block text-sm">Who can message you<select className="input mt-1" value={dmv.mode} onChange={(e) => setDm({ ...dmv, mode: e.target.value })}><option value="OPEN">Everyone (free)</option><option value="PAID">Anyone who pays a fee (subscribers free)</option><option value="SUBSCRIBERS">Subscribers only</option></select></label>
         {dmv.mode === 'PAID' && <label className="block text-sm animate-rise">Fee to start a conversation (points)<input type="number" min={1} className="input mt-1" value={dmv.pricePoints} onChange={(e) => setDm({ ...dmv, pricePoints: e.target.value })} /></label>}
         {dm && <button className="btn-primary" onClick={saveDm}>Save messaging access</button>}<p className="text-xs text-muted">People you message first can always reply. Special request prices are set in Creator Studio → Requests.</p></div></Sec>}
+    <InstallApp />
     {creator && <CreatorServices />}
     <ProPlan me={me} creator={creator} onChanged={reload} />
     {!me.referredBy && <Sec title="Have a referral code?"><div className="flex gap-2"><input className="input" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} /><button className="btn-ghost" onClick={claim}>Apply</button></div><p className="text-xs text-muted">Only possible in your first 7 days.</p></Sec>}

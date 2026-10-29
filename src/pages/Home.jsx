@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUp } from 'lucide-react';
+import InstallApp from '../components/InstallApp.jsx';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import PostCard from '../components/PostCard.jsx';
 import GiftModal from '../components/GiftModal.jsx';
@@ -27,6 +28,7 @@ export default function Home() {
   const empty = tab === 'following' ? 'Follow people on Explore to fill your feed.' : tab === 'communities' ? 'Join communities to see their posts here.' : 'No posts yet.';
   return <div className="space-y-4">
     {atEnd && <div className="fixed top-16 inset-x-0 z-30 flex justify-center pointer-events-none lg:pl-60"><button onClick={refresh} disabled={refreshing} className="pointer-events-auto btn-primary !py-2 !px-4 text-sm shadow-lg animate-[slide_.25s_ease-out]"><ArrowUp size={16} className={refreshing ? 'animate-bounce' : ''} />{refreshing ? 'Refreshing…' : 'Refresh for recent posts'}</button></div>}
+    <InstallApp variant="banner" />
     <StoryBar />
     <div ref={tabsRef} className="flex border-b border-divider overflow-x-auto no-scrollbar snap-x" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={(e) => choose(k, e)} className={`shrink-0 snap-center px-5 py-3 text-sm font-medium border-b-2 ${tab === k ? 'border-violet text-ink' : 'border-transparent text-ink2 hover:text-ink'}`}>{l}</button>)}</div>
     <div key={tab} className="space-y-4 animate-tab">

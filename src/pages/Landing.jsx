@@ -1,3 +1,4 @@
+import InstallApp from '../components/InstallApp.jsx';
 import { Link } from 'react-router-dom';
 import { PublicPage } from '../components/PublicShell.jsx';
 import { Reveal, LineChart, BarChart, Donut, CountUp } from '../components/ui.jsx';
@@ -39,6 +40,7 @@ export default function Landing() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">{features.map(([e, t, d]) => <Reveal key={t} className="card"><div className="text-2xl">{e}</div><h3 className="font-semibold mt-2">{t}</h3><p className="text-ink2 text-sm mt-1">{d}</p></Reveal>)}</div>
     </section>
 
+    <section className="max-w-3xl mx-auto px-4 py-6"><InstallApp /></section>
     <section className="max-w-3xl mx-auto px-4 py-12"><div className="card text-center bg-gradient-to-br from-violet/20 to-pink/10">
       <h2 className="text-2xl font-bold">Ready to join?</h2><p className="text-ink2 mt-2">Create your free account in under a minute.</p><Link to="/signup" className="btn-primary mt-5">Sign up</Link></div></section>
   </PublicPage>;
