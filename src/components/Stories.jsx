@@ -9,7 +9,7 @@ import { shrinkImage } from '../lib/image.js';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 
-const BG = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink' };
+const BG = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink', teal: 'from-teal-500 to-emerald-700', red: 'from-red-500 to-rose-800', orange: 'from-orange-400 to-red-500', indigo: 'from-indigo-500 to-blue-800', slate: 'from-slate-500 to-slate-900' };
 const Ring = ({ unseen, children }) => <span className={`inline-block p-[2px] rounded-full ${unseen ? 'bg-gradient-to-tr from-violet to-pink' : 'bg-line'}`}><span className="block p-[2px] bg-bg rounded-full">{children}</span></span>;
 
 export function AddStoryModal({ open, onClose }) {
@@ -26,7 +26,7 @@ export function AddStoryModal({ open, onClose }) {
     <div className="space-y-3">
       {url ? <div className="relative rounded-card overflow-hidden bg-black">{video ? <video src={url} controls className="w-full max-h-72" /> : <img src={url} alt="Status preview" className="w-full max-h-72 object-contain" />}<button className="absolute top-2 right-2 bg-bg/80 rounded-full p-1" aria-label="Remove" onClick={() => { setFile(null); setUrl(null); }}><X size={16} /></button></div>
         : <div className={`rounded-card bg-gradient-to-br ${BG[bg]} p-6 min-h-[160px] grid place-items-center`}><textarea maxLength={220} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a status…" aria-label="Status text" className="w-full bg-transparent text-center text-xl font-semibold placeholder:text-white/60 resize-none outline-none" rows={3} /></div>}
-      {!url && <div className="flex gap-2 items-center">{Object.keys(BG).map((k) => <button key={k} aria-label={`Colour ${k}`} onClick={() => setBg(k)} className={`w-7 h-7 rounded-full bg-gradient-to-br ${BG[k]} ${bg === k ? 'ring-2 ring-white' : ''}`} />)}<span className="text-xs text-muted ml-auto">{text.length}/220</span></div>}
+      {!url && <div className="flex gap-2 items-center flex-wrap">{Object.keys(BG).map((k) => <button key={k} aria-label={`Colour ${k}`} onClick={() => setBg(k)} className={`w-7 h-7 rounded-full bg-gradient-to-br ${BG[k]} ${bg === k ? 'ring-2 ring-white' : ''}`} />)}<span className="text-xs text-muted ml-auto">{text.length}/220</span></div>}
       <input ref={fileRef} type="file" hidden accept="image/*,video/*" onChange={pick} />
       <button type="button" disabled={busy} onClick={() => fileRef.current.click()} className="btn-ghost w-full animate-glow"><ImagePlus size={18} />{url ? 'Choose a different photo or video' : 'Add a photo or video'}</button>
       <p className="text-xs text-muted">Videos up to {user.creatorPlan === 'PRO' && user.accountMode === 'CREATOR' ? 'the Pro' : 'your plan\'s'} length limit (checked by the server). Statuses disappear after 24 hours.</p>
