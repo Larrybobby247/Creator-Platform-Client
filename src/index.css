@@ -159,13 +159,13 @@
   @keyframes glow {
     0%, 100% {
       box-shadow:
-        0 0 0 0 rgba(139, 92, 246, .55),
-        0 0 18px rgba(139, 92, 246, .35);
+        0 0 0 0 color-mix(in srgb, var(--color-violet) 55%, transparent),
+        0 0 18px color-mix(in srgb, var(--color-violet) 35%, transparent);
     }
     50% {
       box-shadow:
-        0 0 0 12px rgba(139, 92, 246, 0),
-        0 0 34px rgba(236, 72, 153, .5);
+        0 0 0 12px color-mix(in srgb, var(--color-violet) 0%, transparent),
+        0 0 34px color-mix(in srgb, var(--color-pink) 50%, transparent);
     }
   }
 
@@ -197,7 +197,7 @@
   ::-webkit-scrollbar-thumb {
     background: #2b2b3c;
     border-radius: 999px;
-    border: 2px solid #101016;
+    border: 2px solid var(--color-bg);
     transition: background 0.2s;
   }
   ::-webkit-scrollbar-thumb:hover {
@@ -305,3 +305,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) { *, .reveal, .draw, .bar { transition: none !important; animation: none !important; opacity: 1 !important; transform: none !important; stroke-dashoffset: 0 !important; } }
+
+
+/* ---------- Colour themes (chosen in Settings > Appearance). The default "Midnight" theme lives in @theme above. ---------- */
+:root[data-theme="ocean"] { --color-bg:#0A1220; --color-card:#111C2F; --color-card2:#192840; --color-input:#0E1829; --color-violet:#0EA5E9; --color-violet-light:#38BDF8; --color-pink:#14B8A6; --color-line:#27405F; --color-divider:#1F344F; --color-ink2:#9FB2CC; --color-muted:#71859F; }
+:root[data-theme="emerald"] { --color-bg:#0A1410; --color-card:#111F19; --color-card2:#182B23; --color-input:#0E1A15; --color-violet:#10B981; --color-violet-light:#34D399; --color-pink:#84CC16; --color-line:#2A4538; --color-divider:#213629; --color-ink2:#A2BDB0; --color-muted:#74907F; }
+:root[data-theme="sunset"] { --color-bg:#171110; --color-card:#221815; --color-card2:#2E211C; --color-input:#1C1412; --color-violet:#F97316; --color-violet-light:#FB923C; --color-pink:#EC4899; --color-line:#46342D; --color-divider:#382A24; --color-ink2:#C2AFA6; --color-muted:#917D73; }
+:root[data-theme="daylight"] { color-scheme: light; --color-bg:#F5F5FA; --color-card:#FFFFFF; --color-card2:#ECECF5; --color-input:#FFFFFF; --color-violet:#7C3AED; --color-violet-light:#6D28D9; --color-pink:#DB2777; --color-ink:#16161F; --color-ink2:#4F4F66; --color-muted:#74748C; --color-line:#D6D6E4; --color-divider:#E4E4EE; --color-ok:#15803D; --color-warn:#B45309; --color-bad:#DC2626; --color-info:#2563EB; }
+body { transition: background-color .25s ease, color .25s ease; }
