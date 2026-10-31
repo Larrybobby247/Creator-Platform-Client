@@ -11,13 +11,19 @@ export default function Wallet() {
   const wallet = useQuery({ queryKey: keys.wallet, queryFn: get('/points/wallet') });
   const history = useQuery({ queryKey: ['transactions'], queryFn: get('/points/transactions'), staleTime: 15_000 }); // loads independently of the balance cards
   const refresh = () => { qc.invalidateQueries({ queryKey: keys.wallet }); qc.invalidateQueries({ queryKey: ['transactions'] }); };
-  useEffect(() => { const ref = new URLSearchParams(location.search).get('ref'); if (ref) api(`/points/purchase/${ref}/status`).then(refresh).catch(() => {}); }, []); // server-side verification after the payment redirect
+  const [note, setNote] = useState('');
+  // After paying, Paystack sends the user back here. Ask the server to confirm with Paystack, and keep asking for ~20 seconds (the confirmation can lag a moment).
+  useEffect(() => { const ref = new URLSearchParams(location.search).get('ref'); if (!ref) return; let n = 0, stop = false; setNote('Confirming your payment with Paystack…');
+    const run = async () => { try { const d = await api(`/points/purchase/${ref}/status`); refresh(); if (d.status === 'COMPLETED') { setNote(''); toast('Payment confirmed. Points added!'); window.history.replaceState(null, '', '/wallet'); return; } if (d.status === 'FAILED') { setNote('This payment did not go through. You were not charged for points.'); return; } } catch { /* try again */ }
+      if (!stop && ++n < 10) setTimeout(run, 2500); else if (!stop) setNote('Still confirming. Your points are added automatically as soon as Paystack confirms, usually within a minute. You can also tap "Check status" below.'); };
+    run(); return () => { stop = true; }; }, []);
+  const check = async (t) => { try { const d = await api(`/points/purchase/${String(t.idempotencyKey).replace(/^purchase:/, '')}/status`); refresh(); toast(d.status === 'COMPLETED' ? 'Payment confirmed. Points added!' : d.status === 'FAILED' ? 'That payment failed.' : 'Not confirmed yet. Try again in a moment.'); } catch (e) { toast(e.message); } };
   const buy = async (points) => { setBusy(true); setErr('');
     try { const d = await api('/points/purchase', { method: 'POST', body: { points } });
       if (d.mock) { await api(`/points/purchase/${d.reference}/mock-pay`, { method: 'POST' }); toast('Test payment complete (dev mode)'); refresh(); } else window.location.href = d.authorizationUrl; }
     catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const w = wallet.data;
-  return <div className="space-y-6"><h1 className="text-3xl font-bold">Wallet</h1><Err>{err}</Err>
+  return <div className="space-y-6"><h1 className="text-3xl font-bold">Wallet</h1><Err>{err}</Err>{note && <p role="status" className="card !p-3 text-sm text-warn">{note}</p>}
     <Section q={wallet} height="h-28">{() => <>
       <div className="grid grid-cols-2 gap-3"><div className="card"><p className="text-ink2 text-sm">Available points</p><p className="text-4xl font-bold mt-1">{w.availablePoints.toLocaleString()}</p><p className="text-xs text-muted mt-1">≈ {fmtNaira(w.availablePoints * w.nairaPerPoint)} of in-app credit</p></div>
         <div className="card"><p className="text-ink2 text-sm">Reserved</p><p className="text-4xl font-bold mt-1">{w.reservedPoints.toLocaleString()}</p></div></div>
@@ -30,5 +36,5 @@ export default function Wallet() {
     <section><h2 className="text-xl font-semibold mb-3">History</h2>
       <Section q={history} height="h-40" isEmpty={(d) => d.items.length === 0} empty={<Empty>No transactions yet.</Empty>}>{(d) => <ul className="space-y-2">{d.items.map((t) => <li key={t._id} className="card !p-3 flex justify-between gap-3 text-sm">
         <div className="min-w-0"><p className="font-medium truncate">{t.type.replaceAll('_', ' ')}</p><p className="text-muted text-xs truncate">{t.reference} · {new Date(t.createdAt).toLocaleString()}</p></div>
-        <div className="text-right"><p className="font-semibold">{t.direction === 'CREDIT' ? '+' : '−'}{fmtPoints(t.amount)}</p><p className={`text-xs ${tone[t.status]}`}>{t.status}</p></div></li>)}</ul>}</Section></section></div>;
+        <div className="text-right"><p className="font-semibold">{t.direction === 'CREDIT' ? '+' : '−'}{fmtPoints(t.amount)}</p><p className={`text-xs ${tone[t.status]}`}>{t.status}</p>{t.type === 'POINT_PURCHASE' && t.status === 'PENDING' && <button className="text-xs text-violet-light underline mt-1" onClick={() => check(t)}>Check status</button>}</div></li>)}</ul>}</Section></section></div>;
 }

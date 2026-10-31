@@ -9,6 +9,7 @@ import { get } from '../lib/query.js';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 import InstallApp from '../components/InstallApp.jsx';
+import { THEMES, getTheme, applyTheme } from '../lib/theme.js';
 import { useConfirmSpend } from '../components/ConfirmSpend.jsx';
 
 const Sec = ({ title, children }) => <section className="card space-y-3 animate-rise"><h2 className="text-lg font-semibold">{title}</h2>{children}</section>;
@@ -26,11 +27,18 @@ function ProPlan({ me, creator, onChanged }) {
     {creator && active && daysLeft !== null && <div className={`rounded-btn p-3 text-sm flex items-center justify-between gap-3 ${daysLeft <= 3 ? 'bg-warn/15 border border-warn/40' : 'bg-violet/15 border border-violet/40'}`} role="status"><span><b>{daysLeft} {daysLeft === 1 ? 'day' : 'days'} left</b><span className="block text-xs text-ink2">Pro ends on {exp.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</span></span>{daysLeft <= 3 && <span className="text-xs text-warn">Ending soon</span>}</div>}
     <ul className="space-y-1.5 text-sm">{d.benefits.map((b) => <li key={b} className="flex gap-2"><Check size={16} className="text-ok shrink-0 mt-0.5" /><span>{b}</span></li>)}</ul>
     <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-muted text-left"><tr><th className="py-2 font-medium">Feature</th><th className="text-center font-medium">Default</th><th className="text-center font-medium text-violet-light">Pro</th></tr></thead><tbody className="divide-y divide-divider">
-      {[['Exclusive posts per month', d.limits.DEFAULT.exclusivePostsPerMonth, d.limits.PRO.exclusivePostsPerMonth], ['Platform commission', `${d.limits.DEFAULT.commissionBps / 100}%`, `${d.limits.PRO.commissionBps / 100}%`], ['Max video length', `${d.limits.DEFAULT.videoSec}s`, `${d.limits.PRO.videoSec}s`], ['Pinned posts', d.limits.DEFAULT.pinnedPosts, d.limits.PRO.pinnedPosts]].map(([f, a, b]) => <tr key={f}><td className="py-2">{f}</td><td className="text-center">{a}</td><td className="text-center font-semibold">{b}</td></tr>)}
+      {[['Exclusive posts', d.limits.DEFAULT.exclusivePostsPerMonth, 'Unlimited'], ['Platform commission', `${d.limits.DEFAULT.commissionBps / 100}%`, `${d.limits.PRO.commissionBps / 100}%`], ['Max video length', `${d.limits.DEFAULT.videoSec}s`, `${d.limits.PRO.videoSec}s`], ['Pinned posts', d.limits.DEFAULT.pinnedPosts, d.limits.PRO.pinnedPosts]].map(([f, a, b]) => <tr key={f}><td className="py-2">{f}</td><td className="text-center">{a}</td><td className="text-center font-semibold">{b}</td></tr>)}
       {[['Advanced analytics', 'advancedAnalytics']].map(([f, k]) => <tr key={f}><td className="py-2">{f}</td><td><Yes v={d.limits.DEFAULT[k]} /></td><td><Yes v={d.limits.PRO[k]} /></td></tr>)}</tbody></table></div>
     {d.note && <p className="text-xs text-muted">{d.note}</p>}<Err>{err}</Err>{creator ? <button className="btn-primary w-full" disabled={busy} onClick={upgrade}>{busy ? 'Working…' : active ? `Extend by ${d.days} days · ${fmtPoints(d.pricePoints)}${daysLeft !== null ? ` (${daysLeft} left now)` : ''}` : `Upgrade · ${fmtPoints(d.pricePoints)}`}</button> : <Link to="/become-creator" className="btn-ghost w-full">Become a creator to use Pro</Link>}</>}</Section></Sec>;
 }
 
+function ThemePicker() {
+  const [cur, setCur] = useState(getTheme());
+  return <Sec title="Appearance"><p className="text-xs text-muted">Pick the colours you like. It is saved on this device.</p>
+    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Colour theme">{THEMES.map((t) => <button key={t.id} role="radio" aria-checked={cur === t.id} onClick={() => { applyTheme(t.id); setCur(t.id); }} className={`rounded-card p-3 text-left border-2 transition ${cur === t.id ? 'border-violet' : 'border-line'}`} style={{ background: t.card }}>
+      <span className="flex gap-1 mb-2"><i className="w-5 h-5 rounded-full border border-black/10" style={{ background: t.bg }} /><i className="w-5 h-5 rounded-full" style={{ background: t.a }} /><i className="w-5 h-5 rounded-full" style={{ background: t.b }} /></span>
+      <b className="block text-sm" style={{ color: t.id === 'daylight' ? '#16161F' : '#F5F5FA' }}>{t.name}{cur === t.id ? ' ✓' : ''}</b><span className="text-[11px]" style={{ color: t.id === 'daylight' ? '#4F4F66' : '#A1A1B5' }}>{t.note}</span></button>)}</div></Sec>;
+}
 const SERVICES = [['paidPhotos', 'Paid photos', false, 'Sell individual photos in your posts'], ['paidVideos', 'Paid videos', false, 'Sell individual videos in your posts'], ['promotions', 'Creator promotions', false, 'Boost your posts and profile'], ['specialRequests', 'Special requests', 'Minimum price (points)', 'Fans pay you for custom requests'], ['paidCommunities', 'Paid communities', false, 'Charge an entry fee for communities you own'], ['paidVoice', 'Paid voice messages', 'Default price (points)', 'Sell voice notes in chat'], ['tipsGifts', 'Tips and gifts', false, 'Let fans send you gifts'], ['subscriptions', 'Monthly subscriptions', 'Monthly price (points)', 'Subscriber-only content'], ['innerCircle', 'Innercircle', 'Booking price (points)', 'Paid in-person bookings. Needs identity verification in Creator Studio before it goes live']];
 // Every service can be switched on or off at any time, and every price is yours to set (no caps on any plan).
 function CreatorServices() {
@@ -79,6 +87,7 @@ export default function Settings() {
       <div className="space-y-2"><label className="block text-sm">Who can message you<select className="input mt-1" value={dmv.mode} onChange={(e) => setDm({ ...dmv, mode: e.target.value })}><option value="OPEN">Everyone (free)</option><option value="PAID">Anyone who pays a fee (subscribers free)</option><option value="SUBSCRIBERS">Subscribers only</option></select></label>
         {dmv.mode === 'PAID' && <label className="block text-sm animate-rise">Fee to start a conversation (points)<input type="number" min={1} className="input mt-1" value={dmv.pricePoints} onChange={(e) => setDm({ ...dmv, pricePoints: e.target.value })} /></label>}
         {dm && <button className="btn-primary" onClick={saveDm}>Save messaging access</button>}<p className="text-xs text-muted">People you message first can always reply. Special request prices are set in Creator Studio → Requests.</p></div></Sec>}
+    <ThemePicker />
     <InstallApp />
     {creator && <CreatorServices />}
     <ProPlan me={me} creator={creator} onChanged={reload} />

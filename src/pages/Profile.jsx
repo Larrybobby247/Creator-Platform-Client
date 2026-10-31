@@ -1,3 +1,4 @@
+import InnercircleInfoModal from '../components/InnercircleInfo.jsx';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,7 +38,7 @@ function MeetupModal({ creator, onClose }) {
 
 export default function Profile() {
   const { username } = useParams(); const { user, refresh, logout } = useAuth(); const nav = useNavigate(); const { toast } = useLive(); const qc = useQueryClient(); const ask = useConfirmSpend();
-  const [tab, setTab] = useState('posts'); const [gift, setGift] = useState(null); const [modal, setModal] = useState(''); const [people, setPeople] = useState(null); const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState('posts'); const [gift, setGift] = useState(null); const [modal, setModal] = useState(''); const [icInfo, setIcInfo] = useState(false); const [people, setPeople] = useState(null); const [editing, setEditing] = useState(false);
   const [rate, setRate] = useState({ stars: 5, text: '' }); const sentinel = useRef();
   const prof = useQuery({ queryKey: ['profile', username], queryFn: get(`/creators/${username}`), staleTime: 60_000 });
   const d = prof.data; const c = d?.creator; const own = c && c._id === user.id; const isCreator = c?.accountMode === 'CREATOR';
@@ -61,7 +62,7 @@ export default function Profile() {
     <div className="card !p-0 overflow-hidden">{c.coverUrl ? <img src={c.coverUrl} alt="" className="h-28 w-full object-cover" /> : <div className="h-28 bg-gradient-to-r from-violet/50 to-pink/40" />}
       <div className="p-4 -mt-10 space-y-3"><ProfileStory userId={c._id} person={c} own={own} />
         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h1 className="text-2xl font-bold flex items-center gap-2 flex-wrap">{c.displayName || c.username}{isCreator && <CreatorBadge />}{isCreator && c.creatorPlan === 'PRO' && <Badge>PRO</Badge>}</h1><p className="text-muted text-sm flex items-center gap-2">@{c.username}{c.location && ` · ${c.location}`}{c.online && !own && <span className="inline-flex items-center gap-1 text-ok text-xs"><i className="w-2 h-2 rounded-full bg-ok" />Online</span>}</p></div>
-          {isCreator && !own && c.meetup?.enabled && <button onClick={() => setModal('meetup')} aria-label="Request Innercircle" className="shrink-0 animate-glow rounded-full px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet to-pink hover:scale-105 transition">✨ Innercircle</button>}</div>
+          {isCreator && !own && c.meetup?.enabled && <button onClick={() => setIcInfo(true)} aria-label="Request Innercircle" className="shrink-0 animate-glow rounded-full px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet to-pink hover:scale-105 transition">✨ Innercircle</button>}</div>
         {c.bio && <p className="text-ink2 text-sm whitespace-pre-wrap">{c.bio}</p>}
         <p className="text-sm text-ink2 flex flex-wrap gap-x-4 gap-y-1">
           {own ? <button className="hover:text-ink" onClick={() => setPeople('followers')}><b className="text-ink">{d.followers}</b> followers</button> : <span><b className="text-ink">{d.followers}</b> followers</span>}
@@ -84,6 +85,7 @@ export default function Profile() {
       {tab === 'gifts' && (gifts.isPending ? <Skeleton /> : gifts.data.items.length === 0 ? <Empty>No gifts received yet.</Empty> : <div className="grid grid-cols-3 gap-2">{gifts.data.items.map((g) => <div key={g.gift?._id} className="card !p-3 text-center animate-rise"><p className="font-semibold text-sm">{g.gift?.name}</p><p className="text-2xl font-bold">×{g.quantity}</p><p className="text-xs text-muted">{g.pointsSpent} pts</p></div>)}</div>)}
     </div>
     <GiftModal creator={gift} onClose={() => { setGift(null); qc.invalidateQueries({ queryKey: ['gifts'] }); }} />
+    {icInfo && <InnercircleInfoModal m={c.meetup} onClose={() => setIcInfo(false)} onContinue={() => { setIcInfo(false); setModal('meetup'); }} continueLabel="Continue to request" />}
     {modal === 'request' && <RequestModal creator={c} onClose={() => setModal('')} />}{modal === 'meetup' && <MeetupModal creator={c} onClose={() => setModal('')} />}
     {own && <><EditProfileModal open={editing} onClose={() => { setEditing(false); reload(); }} /><PeopleModal kind="followers" open={people === 'followers'} onClose={() => { setPeople(null); reload(); }} /><PeopleModal kind="following" open={people === 'following'} onClose={() => { setPeople(null); reload(); }} /></>}
   </div>;
