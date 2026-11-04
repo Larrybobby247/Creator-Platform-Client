@@ -1,9 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Lock, Play, Crown } from 'lucide-react';
+import { Lock, Play, Crown, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { get } from '../lib/query.js';
 import MediaViewer from './MediaViewer.jsx';
 
+// Plays by itself (muted, looping) while at least 60% of it is on screen, and pauses when you scroll away. Only one feed video plays at a time. Tap to open it full screen with sound.
+let current = null;
+const canAutoplay = () => !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || navigator.connection?.saveData);
+function AutoVideo({ src, single }) {
+  const ref = useRef(); const [muted, setMuted] = useState(true); const [playing, setPlaying] = useState(false); const [waiting, setWaiting] = useState(true); const [pct, setPct] = useState(0);
+  useEffect(() => { const el = ref.current; if (!el) return; const o = new IntersectionObserver(([e]) => { if (e.intersectionRatio >= 0.6 && canAutoplay()) { if (current && current !== el) current.pause(); current = el; el.play().catch(() => {}); } else { el.pause(); if (current === el) current = null; } }, { threshold: [0, 0.6, 1] }); o.observe(el); return () => { o.disconnect(); el.pause(); if (current === el) current = null; }; }, [src]);
+  const loaded = () => { const e = ref.current; if (e?.duration && e.buffered.length) setPct(e.buffered.end(e.buffered.length - 1) / e.duration); };
+  return <>
+    <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover pointer-events-none`} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onWaiting={() => setWaiting(true)} onCanPlay={() => setWaiting(false)} onPlaying={() => setWaiting(false)} onProgress={loaded} onLoadedData={loaded} />
+    {waiting && <span className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-11 h-11 rounded-full bg-black/55 grid place-items-center"><Loader2 size={22} className="animate-spin" /></span></span>}
+    {!playing && !waiting && <span className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-12 h-12 rounded-full bg-black/55 grid place-items-center ring-1 ring-white/20"><Play fill="white" size={20} className="ml-0.5" /></span></span>}
+    <span role="button" tabIndex={0} aria-label={muted ? 'Turn sound on' : 'Mute'} onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setMuted((m) => !m); } }} className="absolute bottom-2 right-2 z-10 w-8 h-8 rounded-full bg-black/60 grid place-items-center">{muted ? <VolumeX size={15} /> : <Volume2 size={15} />}</span>
+    {pct > 0 && pct < 0.999 && <span className="absolute bottom-0 inset-x-0 h-[3px] bg-white/20"><i className="block h-full bg-white/60 transition-all" style={{ width: `${pct * 100}%` }} /></span>}
+  </>;
+}
 const GRID = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-2', 4: 'grid-cols-2' }; // 3 items: the third spans the full second row
 const Tag = ({ it, mixed }) => it.locked ? <span className="absolute top-2 left-2 z-10 flex items-center gap-1 text-[11px] font-semibold bg-bg/85 rounded-full px-2 py-1"><Lock size={11} />{it.access === 'EXCLUSIVE' ? `Exclusive · ${it.pricePoints} pts` : 'Subscribers'}</span>
   : it.access === 'PUBLIC' ? (mixed ? <span className="absolute top-2 left-2 z-10 text-[11px] font-semibold bg-ok/90 text-black rounded-full px-2 py-1">Free</span> : null)
@@ -20,9 +35,8 @@ function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, regis
   return <button type="button" onClick={click} aria-label={it.locked ? 'Locked item' : 'Open media'} className={`relative overflow-hidden rounded-card bg-black block w-full text-left ${h} ${spanFull ? 'col-span-2' : ''}`}>
     <Tag it={it} mixed={mixed} />
     {it.locked && !url ? <div className="absolute inset-0 bg-gradient-to-br from-violet/50 to-pink/40 grid place-items-center"><div className="absolute inset-0 backdrop-blur-xl bg-bg/40" /><div className="relative text-center space-y-1"><Lock className="mx-auto" /><p className="text-xs font-semibold">{it.access === 'EXCLUSIVE' ? `Unlock · ${it.pricePoints} pts` : 'Subscribe to view'}</p></div></div>
-      : url ? (video ? <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover pointer-events-none`} /> : <img src={url} alt="" loading="lazy" decoding="async" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover`} />)
+      : url ? (video ? <AutoVideo src={url} single={single} /> : <img src={url} alt="" loading="lazy" decoding="async" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover`} />)
       : q.isError ? <div className="absolute inset-0 grid place-items-center text-xs text-muted">Unavailable</div> : <div className="absolute inset-0 bg-card2 animate-pulse" />}
-    {video && url && <span className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-12 h-12 rounded-full bg-black/60 grid place-items-center"><Play fill="white" size={20} /></span></span>}
     {legacyPreview && url && <span className="absolute top-2 right-2 text-[11px] bg-bg/80 rounded-full px-2 py-1">Preview</span>}
   </button>;
 }

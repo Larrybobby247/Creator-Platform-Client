@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, X, ImagePlus } from 'lucide-react';
+import { Plus, X, ImagePlus, Heart, Send, Loader2, Eye, ImageOff } from 'lucide-react';
 import { Avatar, Modal, Err } from './ui.jsx';
 import { api } from '../lib/api';
 import { get } from '../lib/query.js';
@@ -36,29 +37,76 @@ export function AddStoryModal({ open, onClose }) {
     </div></Modal>;
 }
 
+// A thin progress segment. Image: waits (shimmers) until the picture has fully loaded. Video: shows how much has LOADED (lighter) ahead of how much has PLAYED, and keeps following the download.
+const Seg = ({ state, p, buf, loading }) => <i className="relative h-[3px] flex-1 rounded-full bg-white/30 overflow-hidden">
+  {state === 'done' ? <b className="absolute inset-0 bg-white" /> : state === 'now' ? <>
+    {buf > 0 && <b className="absolute inset-y-0 left-0 bg-white/50 transition-[width] duration-300" style={{ width: `${buf * 100}%` }} />}
+    <b className="absolute inset-y-0 left-0 bg-white" style={{ width: `${p * 100}%` }} />
+    {loading && <b className="absolute inset-y-0 left-0 w-1/3 bg-white/60 animate-[shimmer_1.1s_linear_infinite]" />}</> : null}</i>;
+
 export function StoryViewer({ groups, start = 0, onClose }) {
-  const qc = useQueryClient(); const [gi, setGi] = useState(start); const [si, setSi] = useState(0); const [p, setP] = useState(0); const [hold, setHold] = useState(false); const vid = useRef();
-  const g = groups[gi]; const s = g?.stories[si];
+  const qc = useQueryClient(); const { toast } = useLive(); const [gi, setGi] = useState(start); const [si, setSi] = useState(0);
+  const [p, setP] = useState(0); const [buf, setBuf] = useState(0); const [loaded, setLoaded] = useState(false); const [waiting, setWaiting] = useState(false); const [failed, setFailed] = useState(false);
+  const [hold, setHold] = useState(false); const [typing, setTyping] = useState(false); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [liked, setLiked] = useState({}); const [pop, setPop] = useState(0);
+  const vid = useRef(); const g = groups[gi]; const s = g?.stories[si]; const mine = g?.source === 'me';
   const media = useQuery({ queryKey: ['story-media', s?._id], queryFn: get(`/stories/${s?._id}/media`), enabled: !!s?.hasMedia, staleTime: 4 * 60_000, retry: false });
-  const next = () => { if (si < g.stories.length - 1) { setSi(si + 1); setP(0); } else if (gi < groups.length - 1) { setGi(gi + 1); setSi(0); setP(0); } else close(); };
-  const prev = () => { if (si > 0) { setSi(si - 1); setP(0); } else if (gi > 0) { setGi(gi - 1); setSi(0); setP(0); } };
+  const access = useQuery({ queryKey: ['story-reply-status', s?._id], queryFn: get(`/stories/${s?._id}/reply-status`), enabled: !!s && !mine, staleTime: 60_000, retry: false });
+  const canReply = !mine && access.data?.ok; const blockedWhy = !mine && access.data && !access.data.ok ? access.data.reason : '';
+  const paused = hold || typing || busy;
+  const reset = () => { setP(0); setBuf(0); setLoaded(false); setWaiting(false); setFailed(false); setErr(''); setText(''); };
+  const next = () => { reset(); if (si < g.stories.length - 1) setSi(si + 1); else if (gi < groups.length - 1) { setGi(gi + 1); setSi(0); } else close(); };
+  const prev = () => { reset(); if (si > 0) setSi(si - 1); else if (gi > 0) { setGi(gi - 1); setSi(0); } };
   const close = () => { qc.invalidateQueries({ queryKey: ['stories'] }); onClose(); };
-  useEffect(() => { if (s && g.source !== 'me') api(`/stories/${s._id}/view`, { method: 'POST' }).catch(() => {}); }, [s?._id]);
-  useEffect(() => { const k = (e) => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') next(); if (e.key === 'ArrowLeft') prev(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); });
-  useEffect(() => { // progress: 5s for text/photos, real playback time for videos
-    if (!s || hold) return; if (s.type === 'VIDEO') return; let raf, last = performance.now(); const tick = (t) => { setP((x) => { const n = x + (t - last) / 5000; last = t; if (n >= 1) { next(); return 0; } return n; }); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [s?._id, hold]);
+  useEffect(() => { if (s && !mine) api(`/stories/${s._id}/view`, { method: 'POST' }).catch(() => {}); }, [s?._id]);
+  useEffect(() => { if (mine) qc.invalidateQueries({ queryKey: ['stories'] }); }, []); // fresh love/view counts for your own status
+  useEffect(() => { const k = (e) => { if (e.target.closest?.('input,textarea')) return; if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') next(); if (e.key === 'ArrowLeft') prev(); }; window.addEventListener('keydown', k); const prevOv = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { window.removeEventListener('keydown', k); document.body.style.overflow = prevOv; }; });
+  useEffect(() => { const v = vid.current; if (!v) return; if (paused) v.pause(); else v.play().catch(() => {}); }, [paused, media.data?.url]);
+  // The 5-second timer only runs for text and for photos that have FINISHED loading. Videos follow their own playback time.
+  const ready = s?.type === 'TEXT' || (s?.type === 'IMAGE' && loaded && !failed);
+  useEffect(() => { if (!s || paused || !ready) return; let raf, last = performance.now(); const tick = (t) => { setP((x) => { const n = x + (t - last) / 5000; last = t; if (n >= 1) { next(); return 0; } return n; }); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [s?._id, paused, ready]);
   if (!g || !s) return null;
-  return <div className="fixed inset-0 z-50 bg-black grid place-items-center animate-fade" role="dialog" aria-modal="true" aria-label="Status viewer">
-    <div className="relative w-full max-w-md h-full sm:h-[92vh] sm:rounded-modal overflow-hidden bg-black select-none" onPointerDown={() => { setHold(true); vid.current?.pause(); }} onPointerUp={() => { setHold(false); vid.current?.play(); }}>
-      <div className="absolute top-0 inset-x-0 z-10 p-3 space-y-3 bg-gradient-to-b from-black/60 to-transparent">
-        <div className="flex gap-1">{g.stories.map((x, i) => <i key={x._id} className="h-[3px] flex-1 rounded-full bg-white/30 overflow-hidden"><b className="block h-full bg-white" style={{ width: i < si ? '100%' : i === si ? `${p * 100}%` : '0%' }} /></i>)}</div>
-        <div className="flex items-center gap-2 text-white text-sm"><Avatar user={g.user} size={32} /><b>{g.user.displayName || g.user.username}</b>{g.source === 'suggested' && <span className="text-[10px] bg-white/20 rounded-full px-2 py-0.5">Suggested</span>}<button className="ml-auto" onClick={close} aria-label="Close"><X /></button></div></div>
-      {s.type === 'TEXT' ? <div className={`h-full grid place-items-center p-8 bg-gradient-to-br ${BG[s.bg] || BG.violet}`}><p className="text-white text-2xl font-bold text-center break-words animate-pop">{s.text}</p></div>
-        : media.data?.url ? (s.type === 'VIDEO' ? <video ref={vid} src={media.data.url} autoPlay playsInline className="w-full h-full object-contain" onTimeUpdate={(e) => setP(e.target.currentTime / (e.target.duration || 1))} onEnded={next} /> : <img src={media.data.url} alt="" className="w-full h-full object-contain" />)
-        : <div className="h-full grid place-items-center text-white/60 animate-pulse">Loading…</div>}
-      {s.text && s.type !== 'TEXT' && <p className="absolute bottom-10 inset-x-0 text-center text-white px-6 drop-shadow font-medium">{s.text}</p>}
-      <button aria-label="Previous" className="absolute left-0 top-16 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); prev(); }} /><button aria-label="Next" className="absolute right-0 top-16 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); next(); }} />
-    </div></div>;
+
+  const isLiked = liked[s._id] ?? s.liked;
+  const like = async () => { setLiked((m) => ({ ...m, [s._id]: !isLiked })); setPop((n) => n + 1); try { const d = await api(`/stories/${s._id}/like`, { method: 'POST' }); setLiked((m) => ({ ...m, [s._id]: d.liked })); } catch (e) { setLiked((m) => ({ ...m, [s._id]: isLiked })); toast(e.message); } };
+  const send = async (e) => { e.preventDefault(); const t = text.trim(); if (!t || busy) return; setBusy(true); setErr('');
+    try { await api(`/stories/${s._id}/reply`, { method: 'POST', body: { text: t } }); setText(''); setTyping(false); toast('Reply sent'); qc.invalidateQueries({ queryKey: ['conversations'] }); document.activeElement?.blur(); }
+    catch (x) { setErr(x.message); } finally { setBusy(false); } };
+  const loading = s.type === 'VIDEO' ? (!media.data?.url || waiting || buf === 0) : s.type === 'IMAGE' ? !loaded && !failed : false;
+
+  return createPortal(<div className="fixed inset-0 z-[70] bg-black grid place-items-center animate-fade" role="dialog" aria-modal="true" aria-label="Status viewer">
+    <div className="relative w-full max-w-md h-[100dvh] sm:h-[92vh] sm:rounded-modal overflow-hidden bg-black select-none flex flex-col">
+      <div className="absolute top-0 inset-x-0 z-20 p-3 space-y-3 bg-gradient-to-b from-black/70 to-transparent" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+        <div className="flex gap-1">{g.stories.map((x, i) => <Seg key={x._id} state={i < si ? 'done' : i === si ? 'now' : 'todo'} p={p} buf={s.type === 'VIDEO' ? buf : 0} loading={i === si && loading} />)}</div>
+        <div className="flex items-center gap-2 text-white text-sm"><Avatar user={g.user} size={32} /><b>{g.user.displayName || g.user.username}</b>{g.source === 'suggested' && <span className="text-[10px] bg-white/20 rounded-full px-2 py-0.5">Suggested</span>}<button className="ml-auto w-9 h-9 grid place-items-center" onClick={close} aria-label="Close"><X /></button></div></div>
+
+      {/* media area: press and hold to pause, tap the sides to move */}
+      <div className="relative flex-1 min-h-0" onPointerDown={() => setHold(true)} onPointerUp={() => setHold(false)} onPointerLeave={() => setHold(false)} onPointerCancel={() => setHold(false)}>
+        {s.type === 'TEXT' ? <div className={`h-full grid place-items-center p-8 bg-gradient-to-br ${BG[s.bg] || BG.violet}`}><p className="text-white text-2xl font-bold text-center break-words animate-pop">{s.text}</p></div>
+          : failed ? <div className="h-full grid place-items-center text-white/70 text-center p-6"><div className="space-y-2"><ImageOff className="mx-auto" /><p className="text-sm">This status could not be loaded.</p><p className="text-xs">Tap the right side to skip.</p></div></div>
+          : media.data?.url ? (s.type === 'VIDEO'
+            ? <video key={media.data.url} ref={vid} src={media.data.url} autoPlay playsInline preload="auto" className="w-full h-full object-contain" onTimeUpdate={(e) => setP(e.target.currentTime / (e.target.duration || 1))}
+                onProgress={(e) => { const v = e.target; if (v.duration && v.buffered.length) setBuf(v.buffered.end(v.buffered.length - 1) / v.duration); }} onLoadedData={(e) => { const v = e.target; if (v.duration && v.buffered.length) setBuf(v.buffered.end(v.buffered.length - 1) / v.duration); }}
+                onWaiting={() => setWaiting(true)} onCanPlay={() => setWaiting(false)} onPlaying={() => setWaiting(false)} onError={() => setFailed(true)} onEnded={next} />
+            : <img key={media.data.url} src={media.data.url} alt="" className={`w-full h-full object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`} ref={(el) => { if (el?.complete && el.naturalWidth) setLoaded(true); }} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />)
+          : null}
+        {loading && s.type !== 'TEXT' && !failed && <div className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-14 h-14 rounded-full bg-black/55 backdrop-blur grid place-items-center"><Loader2 className="animate-spin text-white" size={28} /></span></div>}
+        {s.text && s.type !== 'TEXT' && <p className="absolute bottom-6 inset-x-0 text-center text-white px-6 drop-shadow font-medium">{s.text}</p>}
+        <button aria-label="Previous" className="absolute left-0 top-20 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); prev(); }} /><button aria-label="Next" className="absolute right-0 top-20 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); next(); }} />
+      </div>
+
+      {/* footer: reply + love (other people's statuses) or love/view counts (your own) */}
+      <div className="shrink-0 p-3 bg-gradient-to-t from-black via-black/90 to-black/60 text-white space-y-2" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }} onPointerDown={(e) => e.stopPropagation()}>
+        {mine ? <div className="flex items-center justify-center gap-6 text-sm" aria-label="Your status stats"><span className="flex items-center gap-1.5"><Heart size={18} className="text-pink" fill="currentColor" /><b>{s.likeCount ?? 0}</b> love{(s.likeCount ?? 0) === 1 ? '' : 's'}</span><span className="flex items-center gap-1.5"><Eye size={18} /><b>{s.viewCount ?? 0}</b> view{(s.viewCount ?? 0) === 1 ? '' : 's'}</span></div>
+          : <>
+            {(err || blockedWhy) && <p role="alert" className="text-xs text-warn leading-snug px-1">{err || blockedWhy}</p>}
+            <form onSubmit={send} className="flex items-center gap-2">
+              {canReply || access.isPending ? <input value={text} onChange={(e) => setText(e.target.value)} onFocus={() => setTyping(true)} onBlur={() => setTyping(false)} maxLength={1000} disabled={busy || access.isPending} placeholder={`Reply to ${g.user.displayName || g.user.username}…`} aria-label="Reply to status" className="flex-1 min-w-0 rounded-full bg-white/12 border border-white/25 px-4 py-2.5 text-sm placeholder:text-white/60 outline-none focus:border-white/60" />
+                : <div className="flex-1 rounded-full bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-white/60 truncate" aria-disabled>Replies are not available</div>}
+              {text.trim() ? <button disabled={busy} aria-label="Send reply" className="w-11 h-11 shrink-0 rounded-full bg-gradient-to-br from-violet to-pink grid place-items-center animate-pop">{busy ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button> : null}
+              <button type="button" onClick={like} aria-label={isLiked ? 'Remove love' : 'Love this status'} aria-pressed={isLiked} className="w-11 h-11 shrink-0 rounded-full grid place-items-center active:scale-90 transition"><Heart key={pop} size={26} className={`${isLiked ? 'text-pink animate-pop' : 'text-white'}`} fill={isLiked ? 'currentColor' : 'none'} /></button>
+            </form></>}
+      </div>
+    </div></div>, document.body);
 }
 
 const Item = ({ children, label, sub, onClick, aria, delay = 0 }) => <button onClick={onClick} aria-label={aria} className="flex flex-col items-center gap-1 shrink-0 w-[68px] snap-start animate-rise" style={{ animationDelay: `${delay}ms` }}>{children}<span className="text-[11px] text-ink2 truncate w-full text-center leading-4">{label}</span><span className="text-[9px] text-muted leading-3 h-3 -mt-1">{sub || ''}</span></button>;
