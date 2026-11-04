@@ -313,3 +313,5 @@
 :root[data-theme="sunset"] { --color-bg:#171110; --color-card:#221815; --color-card2:#2E211C; --color-input:#1C1412; --color-violet:#F97316; --color-violet-light:#FB923C; --color-pink:#EC4899; --color-line:#46342D; --color-divider:#382A24; --color-ink2:#C2AFA6; --color-muted:#917D73; }
 :root[data-theme="daylight"] { color-scheme: light; --color-bg:#F5F5FA; --color-card:#FFFFFF; --color-card2:#ECECF5; --color-input:#FFFFFF; --color-violet:#7C3AED; --color-violet-light:#6D28D9; --color-pink:#DB2777; --color-ink:#16161F; --color-ink2:#4F4F66; --color-muted:#74748C; --color-line:#D6D6E4; --color-divider:#E4E4EE; --color-ok:#15803D; --color-warn:#B45309; --color-bad:#DC2626; --color-info:#2563EB; }
 body { transition: background-color .25s ease, color .25s ease; }
+
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
