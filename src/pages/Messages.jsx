@@ -19,6 +19,15 @@ import { useConfirm } from '../components/ConfirmDialog.jsx';
 const baseCats = (creator) => [['all', 'All'], ['unread', 'Unread'], ['creators', 'Creators'], ['users', 'People'], ...(creator ? [['subscribers', 'Subscribers']] : []), ['requests', 'Requests'], ['paid', 'Paid'], ['archived', 'Archived']];
 const EMOJI = ['❤️', '👍', '😂', '😮', '🔥'];
 
+const BGS = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink', teal: 'from-teal-500 to-emerald-700', red: 'from-red-500 to-rose-800', orange: 'from-orange-400 to-red-500', indigo: 'from-indigo-500 to-blue-800', slate: 'from-slate-500 to-slate-900' };
+// The status a message replies to, quoted above the message (like WhatsApp).
+function StoryRef({ r, mine, meId }) {
+  const theirs = String(r.authorId) !== String(meId); // the status belongs to the other person
+  return <div className="rounded-btn overflow-hidden bg-black/25 flex border-l-4 border-pink max-w-full" aria-label="Replied status">
+    <div className="min-w-0 flex-1 px-2.5 py-1.5"><p className="text-[11px] font-semibold text-pink">{mine && theirs ? 'You replied to their status' : !mine && !theirs ? 'Replied to your status' : 'Status'}</p>
+      <p className="text-xs opacity-80 truncate">{r.type === 'TEXT' ? (r.text || 'Status') : r.type === 'VIDEO' ? '🎬 Video status' : '📷 Photo status'}{r.type !== 'TEXT' && r.text ? ` · ${r.text}` : ''}</p></div>
+    <div className={`w-12 shrink-0 grid place-items-center text-lg ${r.type === 'TEXT' ? `bg-gradient-to-br ${BGS[r.bg] || BGS.violet}` : 'bg-black/40'}`}>{r.type === 'TEXT' ? <span className="text-[9px] font-bold text-white px-1 line-clamp-3 break-words text-center leading-tight">{(r.text || '').slice(0, 24)}</span> : r.type === 'VIDEO' ? '🎬' : '📷'}</div></div>;
+}
 function MediaBubble({ m }) {
   const [url, setUrl] = useState(null); const [view, setView] = useState(false);
   useEffect(() => { if (m.mediaId && !m.pending && !m.locked) api(`/messages/message/${m._id}/media`).then((d) => setUrl(d.url)).catch(() => {}); }, [m._id, m.locked, m.mediaId]);
@@ -127,17 +136,18 @@ export default function Messages() {
         {open.draft && open.policy?.mode === 'PAID' && <p className="text-xs text-muted my-2">This creator charges {open.policy.pricePoints} pts to start a conversation (free for subscribers). You'll be asked to confirm when you send.</p>}
         {open.draft && open.policy?.mode === 'SUBSCRIBERS' && <p className="text-xs text-muted my-2">Only subscribers can message this creator.</p>}
         {open.accepted === false && open.requestedBy !== user.id && <div className="card !p-3 my-2 text-sm flex items-center justify-between gap-2">Message request <button className="btn-primary !py-2" onClick={() => act('accept')}>Accept</button></div>}
-        <div className="flex-1 min-h-0 overflow-y-auto py-4 space-y-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 space-y-2">
           {hasMore && <button className="btn-ghost !py-1.5 mx-auto block" onClick={loadEarlier}>Load earlier messages</button>}
           {msgs.length === 0 && <Empty>Say hi 👋</Empty>}
           {msgs.map((m) => { const mine = m.senderId === user.id; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
             if (m.deletedForAll) return <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><p className="text-xs italic text-muted border border-line rounded-card px-3 py-2 flex items-center gap-1"><Ban size={12} />{mine ? 'You deleted this message' : 'This message was deleted'}</p></div>;
             return <div key={m._id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-              <div className={`relative max-w-[82%] px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
+              <div className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
+                {m.storyRef && <StoryRef r={m.storyRef} mine={mine} meId={user.id} />}
                 {rp && <p className="text-xs opacity-70 border-l-2 border-white/40 pl-2 truncate">{rp.deletedForAll ? 'Deleted message' : rp.locked ? 'Paid message' : rp.text || 'Attachment'}</p>}
                 {m.locked ? <div className="space-y-2"><p className="flex items-center gap-1"><Lock size={14} /> {m.text || 'Paid message'}</p>{!mine && <button className="btn-primary !py-2 w-full" onClick={() => unlock(m)}>Unlock · {m.price} pts</button>}</div>
                   : <>{m.mediaId && <MediaBubble m={m} />}{m.paidText && <p className="bg-black/20 rounded p-2">{m.paidText}</p>}{m.text && !m.paidText && <p>{m.text}</p>}{m.price > 0 && mine && <p className="text-[10px] opacity-70">Paid · {m.price} pts</p>}</>}
-                {react === m._id && <div className="absolute -top-9 bg-card border border-line rounded-full px-2 py-1 flex gap-1 z-10">{EMOJI.map((e) => <button key={e} onClick={() => reactTo(m, e)}>{e}</button>)}</div>}</div>
+                {react === m._id && <div className={`absolute -top-10 ${mine ? 'right-0' : 'left-0'} max-w-[88vw] bg-card border border-line rounded-full px-2 py-1 flex gap-1 z-20 shadow-lg animate-pop`}>{EMOJI.map((e) => <button key={e} onClick={() => reactTo(m, e)}>{e}</button>)}</div>}</div>
               {Object.keys(grouped).length > 0 && <div className="flex gap-1 -mt-1 text-xs bg-card border border-line rounded-full px-2 py-0.5">{Object.entries(grouped).map(([e, n]) => <span key={e}>{e}{n > 1 && n}</span>)}</div>}
               <span className="relative text-[10px] text-muted mt-0.5 flex items-center gap-1">{m.failed ? 'Failed to send' : m.pending ? 'Sending…' : ago(m.createdAt)}{mine && m === lastMine && seen && !m.pending ? ' · Seen' : ''}
                 {!m.pending && !m.failed && <button aria-label="Message options" aria-expanded={msgMenu === m._id} className="p-1 text-ink2" onClick={() => setMsgMenu(msgMenu === m._id ? null : m._id)}><MoreVertical size={14} /></button>}
@@ -156,6 +166,7 @@ export default function Messages() {
           {text.trim() ? <button className="btn-primary">Send</button> : <button type="button" className="btn-ghost !px-3" aria-label="Record voice message" onClick={startRec}><Mic size={18} /></button>}
           {user.accountMode === 'CREATOR' && <button type="button" className="btn-ghost !px-3" aria-label="Send paid message" onClick={() => setPaid(true)}>💰</button>}</form>}</>}
       <Modal open={paid} onClose={() => setPaid(false)} title="Paid message"><div className="space-y-3"><input className="input" placeholder="Teaser the buyer sees first" value={pf.teaser} onChange={(e) => setPf({ ...pf, teaser: e.target.value })} /><textarea className="input min-h-[90px]" placeholder="Hidden message (revealed after payment)" value={pf.paidText} onChange={(e) => setPf({ ...pf, paidText: e.target.value })} /><label className="block text-sm">Price (points)<input type="number" min={1} className="input mt-1" value={pf.price} onChange={(e) => setPf({ ...pf, price: e.target.value })} /></label><button className="btn-primary w-full" disabled={!pf.paidText} onClick={sendPaid}>Send · {pf.price} pts</button><p className="text-xs text-muted">To sell a photo, video or voice note, just attach it: you will be asked whether it is free or paid.</p></div></Modal>
+    {(react || msgMenu) && <div className="fixed inset-0 z-[15]" aria-hidden onClick={() => { setReact(null); setMsgMenu(null); }} onTouchStart={() => { setReact(null); setMsgMenu(null); }} />}
     {pricing && <PricePrompt title={pricing.file.type.startsWith('audio') ? 'Voice message: free or paid?' : 'Free or paid?'} noun={pricing.file.type.startsWith('audio') ? 'this voice message' : 'this file'} defaultPrice={user.services?.paidVoice?.pricePoints || 3} onClose={() => setPricing(null)} onDone={({ price }) => { const f = pricing.file; setPricing(null); sendFile(f, price > 0 ? { price } : {}); }} />}
     </div></div>, document.body); }
 
