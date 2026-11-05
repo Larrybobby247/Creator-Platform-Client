@@ -25,8 +25,8 @@ function StoryRef({ r, mine, meId }) {
   const theirs = String(r.authorId) !== String(meId); // the status belongs to the other person
   return <div className="rounded-btn overflow-hidden bg-black/25 flex border-l-4 border-pink max-w-full" aria-label="Replied status">
     <div className="min-w-0 flex-1 px-2.5 py-1.5"><p className="text-[11px] font-semibold text-pink">{mine && theirs ? 'You replied to their status' : !mine && !theirs ? 'Replied to your status' : 'Status'}</p>
-      <p className="text-xs opacity-80 truncate">{r.type === 'TEXT' ? (r.text || 'Status') : r.type === 'VIDEO' ? '🎬 Video status' : '📷 Photo status'}{r.type !== 'TEXT' && r.text ? ` · ${r.text}` : ''}</p></div>
-    <div className={`w-12 shrink-0 grid place-items-center text-lg ${r.type === 'TEXT' ? `bg-gradient-to-br ${BGS[r.bg] || BGS.violet}` : 'bg-black/40'}`}>{r.type === 'TEXT' ? <span className="text-[9px] font-bold text-white px-1 line-clamp-3 break-words text-center leading-tight">{(r.text || '').slice(0, 24)}</span> : r.type === 'VIDEO' ? '🎬' : '📷'}</div></div>;
+      <p className="text-xs opacity-80 truncate">{r.kind === 'TEXT' ? (r.text || 'Status') : r.kind === 'VIDEO' ? '🎬 Video status' : '📷 Photo status'}{r.kind !== 'TEXT' && r.text ? ` · ${r.text}` : ''}</p></div>
+    <div className={`w-12 shrink-0 grid place-items-center text-lg ${r.kind === 'TEXT' ? `bg-gradient-to-br ${BGS[r.bg] || BGS.violet}` : 'bg-black/40'}`}>{r.kind === 'TEXT' ? <span className="text-[9px] font-bold text-white px-1 line-clamp-3 break-words text-center leading-tight">{(r.text || '').slice(0, 24)}</span> : r.kind === 'VIDEO' ? '🎬' : '📷'}</div></div>;
 }
 function MediaBubble({ m }) {
   const [url, setUrl] = useState(null); const [view, setView] = useState(false);
