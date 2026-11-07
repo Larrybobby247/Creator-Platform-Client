@@ -24,7 +24,7 @@ export function LiveProvider({ children }) {
       s.on('connect', () => qc.invalidateQueries({ queryKey: ['conversations'] }));
       s.on('presence', ({ userId, online }) => setPresence((p) => ({ ...p, [userId]: online })));
       s.on('message:new', (e) => { if (e.message.senderId !== user.id) { bump('messages', 1); if (!location.pathname.startsWith('/messages')) toast('New message', 'msg'); } qc.invalidateQueries({ queryKey: ['conversations'] }); });
-      s.on('notification:new', (n) => { bump('notifications', 1); toast(n.text); qc.invalidateQueries({ queryKey: keys.wallet }); qc.invalidateQueries({ queryKey: keys.notifications }); });
+      s.on('notification:new', (n) => { if (!n.replaced) bump('notifications', 1); if (n.type !== 'MESSAGE') toast(n.text); /* messages already toast above */ qc.invalidateQueries({ queryKey: keys.wallet }); qc.invalidateQueries({ queryKey: keys.notifications }); });
     });
     return () => { dead = true; s?.close(); };
   }, [user?.id]);
