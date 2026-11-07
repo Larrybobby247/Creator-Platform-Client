@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { keys } from '../lib/query.js';
-import { Paperclip, Mic, Send, Lock, Trash2, MoreVertical, X as XIcon, Play, Ban, Pin, Archive, Check, CornerUpLeft, UserX } from 'lucide-react';
+import { Paperclip, Mic, Send, Lock, Trash2, MoreVertical, X as XIcon, Play, Ban, Pin, Archive, Check, CornerUpLeft, UserX, ArrowDown, Pencil } from 'lucide-react';
 import { Avatar, Empty, Err, Skeleton, Modal } from '../components/ui.jsx';
 import Notes from '../components/Notes.jsx';
 import { api, ago, uid } from '../lib/api';
@@ -21,7 +21,7 @@ import { useUnwrap, UnwrapOverlay } from '../components/Unwrap.jsx';
 const baseCats = (creator) => [['all', 'All'], ['unread', 'Unread'], ['creators', 'Creators'], ['users', 'People'], ...(creator ? [['subscribers', 'Subscribers']] : []), ['requests', 'Requests'], ['paid', 'Paid'], ['archived', 'Archived']];
 const EMOJI = ['❤️', '👍', '😂', '😮', '🔥'];
 
-const BGS = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink', teal: 'from-teal-500 to-emerald-700', red: 'from-red-500 to-rose-800', orange: 'from-orange-400 to-red-500', indigo: 'from-indigo-500 to-blue-800', slate: 'from-slate-500 to-slate-900' };
+import { statusBg } from '../lib/statusBg.js';
 // A small picture of the status while it is still live (a photo, or a frame about a second into a video). Once the status has expired or been
 // deleted the server refuses the media, so it falls back to the camera / film icon automatically.
 function StoryThumb({ r }) {
@@ -40,7 +40,7 @@ function StoryRef({ r, mine, meId, onOpen }) {
   return <button type="button" onClick={(e) => { e.stopPropagation(); onOpen?.(r); }} className="rounded-btn overflow-hidden bg-black/25 flex border-l-4 border-pink max-w-full w-full text-left active:bg-black/40" aria-label="Open this status">
     <div className="min-w-0 flex-1 px-2.5 py-1.5"><p className="text-[11px] font-semibold text-pink">{mine && theirs ? 'You replied to their status' : !mine && !theirs ? 'Replied to your status' : 'Status'}</p>
       <p className="text-xs opacity-80 truncate">{r.kind === 'TEXT' ? (r.text || 'Status') : r.kind === 'VIDEO' ? '🎬 Video status' : '📷 Photo status'}{r.kind !== 'TEXT' && r.text ? ` · ${r.text}` : ''}</p></div>
-    <div className={`relative w-14 min-h-[3rem] shrink-0 grid place-items-center overflow-hidden ${r.kind === 'TEXT' ? `bg-gradient-to-br ${BGS[r.bg] || BGS.violet}` : 'bg-black/40'}`}><StoryThumb r={r} /></div></button>;
+    <div className={`relative w-14 min-h-[3rem] shrink-0 grid place-items-center overflow-hidden ${r.kind === 'TEXT' ? statusBg(r.bg).className : 'bg-black/40'}`} style={r.kind === 'TEXT' ? statusBg(r.bg).style : undefined}><StoryThumb r={r} /></div></button>;
 }
 // Drag a message to the right to reply to it (touch / pen; on a mouse use the ⋮ menu). Vertical scrolling is untouched.
 function SwipeRow({ onReply, disabled, className = '', children }) {
@@ -97,6 +97,7 @@ export default function Messages() {
   const labelsQ = useQuery({ queryKey: ['labels'], queryFn: get('/messages/labels'), staleTime: 60_000 }); const labels = labelsQ.data?.items || []; const [labelMenu, setLabelMenu] = useState(false); const [newLabel, setNewLabel] = useState(''); const [subsOnly, setSubsOnly] = useState(null);
   const [msgs, setMsgs] = useState([]); const [text, setText] = useState(''); const [tab, setTab] = useState('chat'); const [err, setErr] = useState('');
   const [typing, setTyping] = useState(false); const [seen, setSeen] = useState(false); const [reply, setReply] = useState(null); const [react, setReact] = useState(null);
+  const [editing, setEditing] = useState(null); const [flash, setFlash] = useState(null); const [showDown, setShowDown] = useState(false); const listRef = useRef(null); const atBottom = useRef(true); const knownRef = useRef(null); const newestRef = useRef(0);
   const [more, setMore] = useState(null); const [burst, setBurst] = useState(null); const [storyView, setStoryView] = useState(null); const [sheet, setSheet] = useState(null); const [topMenu, setTopMenu] = useState(false); const lp = useRef({ t: null, fired: false});
   const [rec, setRec] = useState(null); const [recSec, setRecSec] = useState(0); const [pricing, setPricing] = useState(null); const [msgMenu, setMsgMenu] = useState(null); const [paid, setPaid] = useState(false); const [pf, setPf] = useState({ teaser: '', paidText: '', price: 3 }); const [up, setUp] = useState(false); const cancelRec = useRef(false);
   const bottom = useRef(); const typingTimer = useRef(); const lastTyping = useRef(0); const fileRef = useRef(); const recRef = useRef();
@@ -107,10 +108,21 @@ export default function Messages() {
   useEffect(() => { const to = sp.get('to'); if (!to) return;
     api('/messages/conversations?category=all').then(async (d) => { const c = d.items.find((x) => x.participants.some((p) => p._id === to));
       if (c) return setOpen(c); const u = await api(`/creators/${to}`).catch(() => null); if (u) setOpen({ draft: true, policy: u.creator.dmPolicy && u.creator.accountMode === 'CREATOR' ? u.creator.dmPolicy : null, participants: [{ _id: user.id }, { _id: to, username: u.creator.username, displayName: u.creator.displayName, avatarUrl: u.creator.avatarUrl }] }); }); }, [sp]);
-  const openConv = useCallback(async (c) => { if (c.draft) { setMsgs([]); return; } const d = await api(`/messages/${c._id}`); setMsgs(d.messages); setHasMore(!!d.hasMore); setSeen(false); refreshCounts(); loadList(); }, []);
-  useEffect(() => { if (open) { setTab('chat'); setReply(null); openConv(open); } }, [open?._id]);
+  const openConv = useCallback(async (c) => { knownRef.current = null; atBottom.current = true; if (c.draft) { setMsgs([]); return; } const d = await api(`/messages/${c._id}`); knownRef.current = null; setMsgs(d.messages); setHasMore(!!d.hasMore); setSeen(false); refreshCounts(); loadList(); }, []);
+  useEffect(() => { if (open) { setTab('chat'); setReply(null); setEditing(null); setShowDown(false); openConv(open); } }, [open?._id]);
+  // Remember which messages were already on screen: only a message that arrives AFTER that gets the pop-in animation (not the history, not older pages).
+  useEffect(() => { const k = new Set(); let newest = 0; for (const m of msgs) { k.add(m._id); if (m.clientId) k.add(m.clientId); const t = new Date(m.createdAt).getTime(); if (t > newest) newest = t; } if (knownRef.current === null || msgs.length) { knownRef.current = k; newestRef.current = newest; } }, [msgs]);
   // Only the message list scrolls: the page behind is locked while a chat is open and we scroll the list itself (scrollIntoView used to scroll the whole page and push the header away).
-  useEffect(() => { const el = bottom.current?.parentElement; el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }, [msgs.length, typing]);
+  useEffect(() => { const el = listRef.current; if (!el) return; const last = msgs[msgs.length - 1]; if (atBottom.current || last?.senderId === user.id) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }, [msgs.length, typing]);
+  const onListScroll = (e) => { const el = e.currentTarget; const away = el.scrollHeight - el.scrollTop - el.clientHeight; atBottom.current = away < 120; setShowDown(away > 320); };
+  const toBottom = () => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  // Tap a quoted reply: scroll to the original message and flash it for a moment (like WhatsApp). Loads older messages first if it is further up.
+  const hasMoreRef = useRef(false); const loadEarlierRef = useRef(async () => {});
+  const jumpTo = async (id) => { const find = () => listRef.current?.querySelector(`[data-mid="${id}"]`);
+    let el = find(); for (let i = 0; !el && hasMoreRef.current && i < 8; i++) { await loadEarlierRef.current(); await new Promise((r) => setTimeout(r, 60)); el = find(); }
+    if (!el) return toast('That message is no longer available.');
+    const L = listRef.current; const top = el.getBoundingClientRect().top - L.getBoundingClientRect().top + L.scrollTop - L.clientHeight / 2 + el.offsetHeight / 2; L.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    setFlash(null); setTimeout(() => { setFlash(id); setTimeout(() => setFlash((f) => (f === id ? null : f)), 2200); }, 30); };
   useEffect(() => { if (!open) return; const prev = document.body.style.overflow; window.scrollTo(0, 0); document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = prev; }; }, [!!open]);
   // Safety net: if the live connection drops, new messages still arrive within a few seconds without leaving the chat.
   useEffect(() => { if (!open || open.draft) return; const t = setInterval(async () => { if (document.hidden) return; try { const d = await api(`/messages/${open._id}`); setMsgs((cur) => { const pend = cur.filter((x) => x.pending || x.failed); const known = new Set(d.messages.map((x) => x._id)); const first = d.messages[0] ? new Date(d.messages[0].createdAt) : new Date(0); const older = cur.filter((x) => !x.pending && !x.failed && !known.has(x._id) && new Date(x.createdAt) < first); return [...older, ...d.messages, ...pend.filter((x) => !known.has(x._id))]; }); refreshCounts(); } catch { /* retry next tick */ } }, 6000); return () => clearInterval(t); }, [open?._id]);
@@ -134,7 +146,8 @@ export default function Messages() {
     return () => { socket.off('message:deleted', onDel); socket.off('message:new', onMsg); socket.off('message:update', onUpd); socket.off('typing', onTyping); socket.off('conversation:read', onRead); };
   }, [socket, loadList]);
 
-  const loadEarlier = async () => { const first = msgs.find((m) => !m.pending); if (!first) return; const d = await api(`/messages/${open._id}?before=${encodeURIComponent(first.createdAt)}`); setMsgs((m) => [...d.messages, ...m]); setHasMore(!!d.hasMore); };
+  const loadEarlier = async () => { const first = msgs.find((m) => !m.pending); if (!first) return; const d = await api(`/messages/${open._id}?before=${encodeURIComponent(first.createdAt)}`); setMsgs((m) => [...d.messages, ...m]); setHasMore(!!d.hasMore); hasMoreRef.current = !!d.hasMore; };
+  loadEarlierRef.current = loadEarlier; hasMoreRef.current = hasMore;
   const optimistic = (extra) => { const clientId = uid(); setMsgs((m) => [...m, { _id: clientId, clientId, pending: true, senderId: user.id, createdAt: new Date().toISOString(), ...extra }]); return clientId; };
   const settle = (clientId, m) => setMsgs((ms) => ms.map((x) => x.clientId === clientId ? { ...m, clientId } : x).filter((x, i, a) => a.findIndex((y) => y._id === x._id) === i));
   const fail = (clientId, e) => { setErr(e.message); setMsgs((ms) => ms.map((y) => y.clientId === clientId ? { ...y, failed: true, pending: false } : y)); };
@@ -145,7 +158,13 @@ export default function Messages() {
     if (x.code === 'DM_PAYMENT_REQUIRED') { const price = x.data?.extra?.price; if (!(await ask({ title: `Pay to message ${o.displayName || o.username}?`, detail: 'A one-time fee opens the conversation. Subscribers message for free.', points: price, confirmLabel: 'Pay and send' }))) return false;
       try { await api('/messages/dm-access', { method: 'POST', body: { toUserId: o._id } }); window.dispatchEvent(new Event('wallet:changed')); return true; } catch (e) { setErr(e.code === 'INSUFFICIENT_POINTS' ? 'Not enough points. Top up in your wallet.' : e.message); return false; } }
     if (x.code === 'DM_SUBSCRIBERS_ONLY') { setSubsOnly(o); return false; } return null; };
-  const send = async (e) => { e.preventDefault(); const t = text.trim(); if (!t) return; setText(''); setErr(''); const o = other(open); const replyTo = reply?._id; setReply(null);
+  // Edit a sent text message: 15 minutes for everyone, 30 minutes for Pro creators (the server enforces it too).
+  const editMins = creator && user.creatorPlan === 'PRO' ? 30 : 15;
+  const canEdit = (m) => m.senderId === user.id && m.type === 'TEXT' && !m.price && !m.mediaId && !m.deletedForAll && !m.pending && !m.failed && Date.now() - new Date(m.createdAt).getTime() < editMins * 60_000;
+  const startEdit = (m) => { setMsgMenu(null); setReply(null); setEditing({ id: m._id }); setText(m.text || ''); };
+  const saveEdit = async (t) => { const id = editing.id; const prev = msgs.find((x) => x._id === id); if (prev && t === prev.text) { setEditing(null); setText(''); return; }
+    try { const d = await api(`/messages/message/${id}/edit`, { method: 'POST', body: { text: t } }); setMsgs((ms) => ms.map((x) => (x._id === id ? { ...x, text: d.message.text, editedAt: d.message.editedAt } : x))); setEditing(null); setText(''); loadList(); } catch (x) { toast(x.message); if (x.code === 'EDIT_WINDOW') { setEditing(null); setText(''); } } };
+  const send = async (e) => { e.preventDefault(); const t = text.trim(); if (!t) return; if (editing) return saveEdit(t); setText(''); setErr(''); const o = other(open); const replyTo = reply?._id; setReply(null);
     const cid = optimistic({ text: t, replyTo }); const post = () => api('/messages', { method: 'POST', body: { toUserId: o._id, text: t, clientId: cid, replyTo } });
     try { settle(cid, await post()); afterDraft(o); } catch (x) { const g = await dmGate(x, o); if (g === true) { try { settle(cid, await post()); afterDraft(o); return; } catch (y) { return fail(cid, y); } } if (g === false) { setMsgs((ms) => ms.filter((m) => m.clientId !== cid)); setText(t); return; } fail(cid, x); } };
   const sendFile = async (file, extra = {}) => { if (!file) return; setErr(''); setUp(true); const o = other(open); const cid = optimistic({ type: file.type.startsWith('image') ? 'IMAGE' : file.type.startsWith('audio') ? 'VOICE' : 'VIDEO', mediaId: 'x' });
@@ -206,34 +225,37 @@ export default function Messages() {
         {open.draft && open.policy?.mode === 'PAID' && <p className="text-xs text-muted my-2">This creator charges {open.policy.pricePoints} pts to start a conversation (free for subscribers). You'll be asked to confirm when you send.</p>}
         {open.draft && open.policy?.mode === 'SUBSCRIBERS' && <p className="text-xs text-muted my-2">Only subscribers can message this creator.</p>}
         {open.accepted === false && open.requestedBy !== user.id && <div className="card !p-3 my-2 text-sm flex items-center justify-between gap-2">Message request <button className="btn-primary !py-2" onClick={() => act('accept')}>Accept</button></div>}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 space-y-2">
+        <div className="relative flex-1 min-h-0"><div ref={listRef} onScroll={onListScroll} className="h-full overflow-y-auto overflow-x-hidden py-4 space-y-2">
           {hasMore && <button className="btn-ghost !py-1.5 mx-auto block" onClick={loadEarlier}>Load earlier messages</button>}
           {msgs.length === 0 && <Empty>Say hi 👋</Empty>}
-          {msgs.map((m) => { const mine = m.senderId === user.id; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
+          {msgs.map((m, i) => { const mine = m.senderId === user.id; const nx = msgs[i + 1]; const tail = !nx || nx.senderId !== m.senderId || nx.deletedForAll; const isNew = knownRef.current && !knownRef.current.has(m._id) && !(m.clientId && knownRef.current.has(m.clientId)) && new Date(m.createdAt).getTime() >= newestRef.current; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
             if (m.deletedForAll) return <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><p className="text-xs italic text-muted border border-line rounded-card px-3 py-2 flex items-center gap-1"><Ban size={12} />{mine ? 'You deleted this message' : 'This message was deleted'}</p></div>;
             return <SwipeRow key={m._id} disabled={m.pending || m.failed} onReply={() => setReply(m)} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-              <div className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
+              <div data-mid={m._id} className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${tail ? (mine ? 'bub-tail-me' : 'bub-tail-them') : ''} ${isNew ? (mine ? 'bubble-pop-me' : 'bubble-pop-them') : ''} ${flash === m._id ? 'msg-flash' : ''} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
                 {m.storyRef && <StoryRef r={m.storyRef} mine={mine} meId={user.id} onOpen={openStory} />}
-                {rp && <p className="text-xs opacity-70 border-l-2 border-white/40 pl-2 truncate">{rp.deletedForAll ? 'Deleted message' : rp.locked ? 'Paid message' : rp.text || 'Attachment'}</p>}
+                {m.replyTo && <button type="button" onClick={(e) => { e.stopPropagation(); jumpTo(m.replyTo); }} className="block w-full text-left text-xs opacity-80 hover:opacity-100 border-l-2 border-white/50 bg-black/15 rounded-r pl-2 pr-1 py-1 truncate" aria-label="Go to the message you replied to">{!rp ? 'Original message' : rp.deletedForAll ? 'Deleted message' : rp.locked ? 'Paid message' : rp.text || 'Attachment'}</button>}
                 {(m.locked || m.mediaId || m.paidText || m.price > 0) ? <PaidBody m={m} mine={mine} onUnlock={() => unlock(m)} /> : m.text && <p>{m.text}</p>}
                 {burst?.id === m._id && <span key={burst.k} className="react-float" aria-hidden>{burst.emoji}</span>}
                 {react === m._id && <div className={`absolute -top-10 ${mine ? 'right-0' : 'left-0'} max-w-[88vw] bg-card border border-line rounded-full px-2 py-1 flex gap-1 z-20 shadow-lg animate-pop`}>{EMOJI.map((e) => <button key={e} className="active:scale-75 transition" onClick={() => reactTo(m, e)}>{e}</button>)}<button className="w-6 h-6 rounded-full bg-card2 grid place-items-center text-sm leading-none" aria-label="More emoji" onClick={() => { setMore(m); setReact(null); }}>+</button></div>}</div>
               {Object.keys(grouped).length > 0 && <div className="flex gap-1 -mt-1 text-xs bg-card border border-line rounded-full px-2 py-0.5">{Object.entries(grouped).map(([e, n]) => <span key={e} className={burst?.id === m._id && burst.emoji === e ? 'react-chip-pop inline-block' : ''}>{e}{n > 1 && n}</span>)}</div>}
-              <span className="relative text-[10px] text-muted mt-0.5 flex items-center gap-1">{m.failed ? 'Failed to send' : m.pending ? 'Sending…' : ago(m.createdAt)}{mine && m === lastMine && seen && !m.pending ? ' · Seen' : ''}
+              <span className="relative text-[10px] text-muted mt-0.5 flex items-center gap-1">{m.failed ? 'Failed to send' : m.pending ? 'Sending…' : <>{m.editedAt && <span className="italic">edited · </span>}{ago(m.createdAt)}</>}{mine && m === lastMine && seen && !m.pending ? ' · Seen' : ''}
                 {!m.pending && !m.failed && <button aria-label="Message options" aria-expanded={msgMenu === m._id} className="p-1 text-ink2" onClick={() => setMsgMenu(msgMenu === m._id ? null : m._id)}><MoreVertical size={14} /></button>}
                 {msgMenu === m._id && <div className={`absolute z-20 bottom-full mb-1 ${mine ? 'right-0' : 'left-0'} w-48 bg-card2 border border-line rounded-btn text-sm text-ink overflow-hidden animate-fade`}>
                   <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReply(m); setMsgMenu(null); }}>Reply</button>
                   <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReact(m._id); setMsgMenu(null); }}>React</button>
+                  {canEdit(m) && <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => startEdit(m)}><Pencil size={14} />Edit</button>}
                   <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => delMsg(m, 'me')}><Trash2 size={14} />Delete for me</button>
                   {mine && <button className="block w-full text-left px-3 py-2 hover:bg-line text-bad flex items-center gap-2" onClick={() => delMsg(m, 'everyone')}><Trash2 size={14} />Delete for everyone</button>}</div>}</span></SwipeRow>; })}
           {typing && <div className="bg-card2 w-14 px-3 py-2 rounded-card text-muted tracking-widest animate-pulse">•••</div>}<div ref={bottom} /></div>
+          {showDown && <button onClick={toBottom} aria-label="Scroll to the latest message" className="absolute bottom-3 right-2 w-10 h-10 rounded-full bg-card2 border border-line shadow-lg grid place-items-center text-ink hover:bg-line animate-pop"><ArrowDown size={18} /></button>}</div>
         <Err>{err}</Err>
+        {editing && <div className="text-xs bg-card2 rounded-t-btn px-3 py-2 flex justify-between items-center"><span className="flex items-center gap-1.5 text-violet-light font-semibold"><Pencil size={12} />Editing message</span><button onClick={() => { setEditing(null); setText(''); }} aria-label="Cancel edit">×</button></div>}
         {reply && <div className="text-xs bg-card2 rounded-t-btn px-3 py-2 flex justify-between"><span className="truncate">Replying to: {reply.locked ? 'Paid message' : reply.text || 'Attachment'}</span><button onClick={() => setReply(null)} aria-label="Cancel reply">×</button></div>}
         {rec ? <div className="flex items-center gap-3 pt-2 animate-fade"><button className="btn-ghost !px-3 text-bad" onClick={discardRec} aria-label="Cancel recording"><Trash2 size={18} /></button><span className="flex-1 text-bad animate-pulse">● Recording… {Math.floor(recSec / 60)}:{String(recSec % 60).padStart(2, '0')}</span><button className="btn-primary" onClick={stopRec} aria-label="Finish and send"><Send size={16} /></button></div> :
         <form onSubmit={send} className="flex gap-2 pt-2 items-center"><input ref={fileRef} type="file" hidden accept="image/*,video/*" onChange={(e) => { stage(e.target.files[0]); e.target.value = ''; }} />
           <button type="button" className="btn-ghost !px-3" aria-label="Attach photo or video" disabled={up} onClick={() => fileRef.current.click()}><Paperclip size={18} /></button>
           <input className="input" value={text} onChange={(e) => onType(e.target.value)} placeholder="Message…" aria-label="Message" autoComplete="off" />
-          {text.trim() ? <button className="btn-primary">Send</button> : <button type="button" className="btn-ghost !px-3" aria-label="Record voice message" onClick={startRec}><Mic size={18} /></button>}
+          {text.trim() ? <button className="btn-primary">{editing ? 'Save' : 'Send'}</button> : <button type="button" className="btn-ghost !px-3" aria-label="Record voice message" onClick={startRec}><Mic size={18} /></button>}
           {user.accountMode === 'CREATOR' && <button type="button" className="btn-ghost !px-3" aria-label="Send paid message" onClick={() => setPaid(true)}>💰</button>}</form>}</>}
       <Modal open={paid} onClose={() => setPaid(false)} title="Paid message"><div className="space-y-3"><input className="input" placeholder="Teaser the buyer sees first" value={pf.teaser} onChange={(e) => setPf({ ...pf, teaser: e.target.value })} /><textarea className="input min-h-[90px]" placeholder="Hidden message (revealed after payment)" value={pf.paidText} onChange={(e) => setPf({ ...pf, paidText: e.target.value })} /><label className="block text-sm">Price (points)<input type="number" min={1} className="input mt-1" value={pf.price} onChange={(e) => setPf({ ...pf, price: e.target.value })} /></label><button className="btn-primary w-full" disabled={!pf.paidText} onClick={sendPaid}>Send · {pf.price} pts</button><p className="text-xs text-muted">To sell a photo, video or voice note, just attach it: you will be asked whether it is free or paid.</p></div></Modal>
     {more && <EmojiSheet onPick={(e) => reactTo(more, e)} onClose={() => setMore(null)} />}
