@@ -10,11 +10,11 @@ import { shrinkImage } from '../lib/image.js';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 
-const BG = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink', teal: 'from-teal-500 to-emerald-700', red: 'from-red-500 to-rose-800', orange: 'from-orange-400 to-red-500', indigo: 'from-indigo-500 to-blue-800', slate: 'from-slate-500 to-slate-900' };
+import { FREE_BG as BG, PRO_FLAT_KEYS, PRO_DOODLE_KEYS, isProBg, statusBg } from '../lib/statusBg.js';
 const Ring = ({ unseen, children }) => <span className={`inline-block p-[2px] rounded-full ${unseen ? 'bg-gradient-to-tr from-violet to-pink' : 'bg-line'}`}><span className="block p-[2px] bg-bg rounded-full">{children}</span></span>;
 
 export function AddStoryModal({ open, onClose }) {
-  const qc = useQueryClient(); const { user } = useAuth(); const { toast } = useLive(); const fileRef = useRef();
+  const qc = useQueryClient(); const { user } = useAuth(); const { toast } = useLive(); const fileRef = useRef(); const isPro = user?.accountMode === 'CREATOR' && user?.creatorPlan === 'PRO';
   const [file, setFile] = useState(null); const [url, setUrl] = useState(null); const [text, setText] = useState(''); const [bg, setBg] = useState('violet'); const [pct, setPct] = useState(0); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   useEffect(() => { if (!open) { setFile(null); setUrl(null); setText(''); setPct(0); setErr(''); setBusy(false); } }, [open]);
   const pick = async (e) => { const f = e.target.files[0]; if (!f) return; const out = f.type.startsWith('image/') ? await shrinkImage(f, 1280) : f; setFile(out); setUrl(URL.createObjectURL(out)); };
@@ -26,8 +26,10 @@ export function AddStoryModal({ open, onClose }) {
   return <Modal open={open} onClose={() => !busy && onClose()} title="Add to your status">
     <div className="space-y-3">
       {url ? <div className="relative rounded-card overflow-hidden bg-black">{video ? <video src={url} controls className="w-full max-h-72" /> : <img src={url} alt="Status preview" className="w-full max-h-72 object-contain" />}<button className="absolute top-2 right-2 bg-bg/80 rounded-full p-1" aria-label="Remove" onClick={() => { setFile(null); setUrl(null); }}><X size={16} /></button></div>
-        : <div className={`rounded-card bg-gradient-to-br ${BG[bg]} p-6 min-h-[160px] grid place-items-center`}><textarea maxLength={220} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a status…" aria-label="Status text" className="w-full bg-transparent text-center text-xl font-semibold placeholder:text-white/60 resize-none outline-none" rows={3} /></div>}
-      {!url && <div className="flex gap-2 items-center flex-wrap">{Object.keys(BG).map((k) => <button key={k} aria-label={`Colour ${k}`} onClick={() => setBg(k)} className={`w-7 h-7 rounded-full bg-gradient-to-br ${BG[k]} ${bg === k ? 'ring-2 ring-white' : ''}`} />)}<span className="text-xs text-muted ml-auto">{text.length}/220</span></div>}
+        : <div className={`rounded-card ${statusBg(bg).className} p-6 min-h-[160px] grid place-items-center`} style={statusBg(bg).style}><textarea maxLength={220} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a status…" aria-label="Status text" className="w-full bg-transparent text-center text-xl font-semibold placeholder:text-white/60 resize-none outline-none" rows={3} /></div>}
+      {!url && <div className="space-y-2"><div className="flex gap-2 items-center flex-wrap">{Object.keys(BG).map((k) => <button key={k} aria-label={`Colour ${k}`} onClick={() => setBg(k)} className={`w-7 h-7 rounded-full bg-gradient-to-br ${BG[k]} ${bg === k ? 'ring-2 ring-white' : ''}`} />)}<span className="text-xs text-muted ml-auto">{text.length}/220</span></div>
+        <div className="space-y-1.5"><p className="text-xs font-semibold flex items-center gap-1.5"><span className="rounded-full bg-gradient-to-r from-violet to-pink text-white px-1.5 py-[1px] text-[9px]">PRO</span>Privy Pro colours{!isPro && <span className="text-muted font-normal">· for Pro creators</span>}</p>
+          <div className={`flex gap-2 items-center flex-wrap ${isPro ? '' : 'opacity-60'}`}>{[...PRO_FLAT_KEYS, ...PRO_DOODLE_KEYS].map((k) => <button key={k} aria-label={`Pro colour ${k.replace('-', ' ')}`} onClick={() => (isPro ? setBg(k) : toast('Flat and doodle colours are for Privy Pro creators.'))} className={`w-7 h-7 rounded-full border border-white/20 ${bg === k ? 'ring-2 ring-white' : ''}`} style={{ ...statusBg(k).style, backgroundSize: '34px 34px' }} />)}</div></div></div>}
       {url && <label className="block"><span className="sr-only">Caption</span><input value={text} maxLength={220} onChange={(e) => setText(e.target.value)} placeholder="Add a caption…" aria-label="Caption" className="input" /><span className="text-xs text-muted block text-right mt-1">{text.length}/220</span></label>}
       <input ref={fileRef} type="file" hidden accept="image/*,video/*" onChange={pick} />
       <button type="button" disabled={busy} onClick={() => fileRef.current.click()} className="btn-ghost w-full animate-glow"><ImagePlus size={18} />{url ? 'Choose a different photo or video' : 'Add a photo or video'}</button>
@@ -83,7 +85,7 @@ export function StoryViewer({ groups, start = 0, startStoryId, onClose }) {
 
       {/* media area: press and hold to pause, tap the sides to move */}
       <div className="relative flex-1 min-h-0" onPointerDown={() => setHold(true)} onPointerUp={() => setHold(false)} onPointerLeave={() => setHold(false)} onPointerCancel={() => setHold(false)}>
-        {s.type === 'TEXT' ? <div className={`h-full grid place-items-center p-8 bg-gradient-to-br ${BG[s.bg] || BG.violet}`}><p className="text-white text-2xl font-bold text-center break-words animate-pop">{s.text}</p></div>
+        {s.type === 'TEXT' ? <div className={`h-full grid place-items-center p-8 ${statusBg(s.bg).className}`} style={statusBg(s.bg).style}><p className="text-white text-2xl font-bold text-center break-words animate-pop">{s.text}</p></div>
           : failed ? <div className="h-full grid place-items-center text-white/70 text-center p-6"><div className="space-y-2"><ImageOff className="mx-auto" /><p className="text-sm">This status could not be loaded.</p><p className="text-xs">Tap the right side to skip.</p></div></div>
           : media.data?.url ? (s.type === 'VIDEO'
             ? <video key={media.data.url} ref={vid} src={media.data.url} autoPlay playsInline preload="auto" className="w-full h-full object-contain" onTimeUpdate={(e) => setP(e.target.currentTime / (e.target.duration || 1))}
