@@ -7,7 +7,7 @@ export function Header() {
   const { user } = useAuth(); const p = usePlatform();
   return <header className="sticky top-0 z-30 bg-bg/90 backdrop-blur border-b border-divider">
     <div className="max-w-6xl mx-auto flex items-center gap-4 px-4 h-14">
-      <Link to="/" className="flex items-center gap-2 text-xl font-bold">{p.logoUrl && <img src={p.logoUrl} alt="" width="28" height="28" className="rounded-md" />}<Brand name={p.name} height={32} /></Link>
+      <Link to="/" className="flex items-center gap-2 text-xl font-bold">{p.logoUrl && <img src={p.logoUrl} alt="" width="28" height="28" className="rounded-md" />}<Brand name={p.name} height={44} /></Link>
       <nav className="hidden sm:flex gap-4 ml-4 text-sm text-ink2">{links.map(([to, l]) => <NavLink key={to} to={to} className={({ isActive }) => isActive ? 'text-ink' : 'hover:text-ink'}>{l}</NavLink>)}</nav>
       <div className="ml-auto flex gap-2">{user ? <Link to="/home" className="btn-primary !py-2">Open app</Link> : <><Link to="/login" className="btn-ghost !py-2">Log in</Link><Link to="/signup" className="btn-primary !py-2">Sign up</Link></>}</div>
     </div></header>;

@@ -7,13 +7,20 @@ import { useUnwrap, UnwrapOverlay } from './Unwrap.jsx';
 
 // Plays by itself (muted, looping) while at least 60% of it is on screen, and pauses when you scroll away. Only one feed video plays at a time. Tap to open it full screen with sound.
 let current = null;
-const canAutoplay = () => !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || navigator.connection?.saveData);
+// Muted looping autoplay is allowed by every browser. We deliberately do NOT switch it off for "reduce motion" / data-saver: many phones have those on by default and the videos then never started.
+const canAutoplay = () => true;
 function AutoVideo({ src, single }) {
   const ref = useRef(); const [muted, setMuted] = useState(true); const [playing, setPlaying] = useState(false); const [waiting, setWaiting] = useState(true); const [pct, setPct] = useState(0);
-  useEffect(() => { const el = ref.current; if (!el) return; const o = new IntersectionObserver(([e]) => { if (e.intersectionRatio >= 0.6 && canAutoplay()) { if (current && current !== el) current.pause(); current = el; el.play().catch(() => {}); } else { el.pause(); if (current === el) current = null; } }, { threshold: [0, 0.6, 1] }); o.observe(el); return () => { o.disconnect(); el.pause(); if (current === el) current = null; }; }, [src]);
+  const inView = useRef(false);
+  useEffect(() => { if (ref.current) { ref.current.muted = muted; ref.current.defaultMuted = muted; } }, [muted]); // React does not reliably apply the muted attribute, and an unmuted video is blocked from autoplaying
+  const start = () => { const el = ref.current; if (!el || !inView.current || !canAutoplay()) return; if (current && current !== el) current.pause(); current = el; const p = el.play(); if (p?.catch) p.catch(() => { if (!el.muted) { el.muted = true; setMuted(true); el.play().catch(() => {}); } }); };
+  useEffect(() => { const el = ref.current; if (!el) return; el.muted = true;
+    // "reached" = about half of the video (or, for a tall video, half of the screen) is visible
+    const o = new IntersectionObserver(([e]) => { const half = e.intersectionRatio >= 0.5 || e.intersectionRect.height >= window.innerHeight * 0.5; inView.current = half; if (half) start(); else { el.pause(); if (current === el) current = null; } }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+    o.observe(el); return () => { o.disconnect(); inView.current = false; el.pause(); if (current === el) current = null; }; }, [src]);
   const loaded = () => { const e = ref.current; if (e?.duration && e.buffered.length) setPct(e.buffered.end(e.buffered.length - 1) / e.duration); };
   return <>
-    <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover pointer-events-none`} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onWaiting={() => setWaiting(true)} onCanPlay={() => setWaiting(false)} onPlaying={() => setWaiting(false)} onProgress={loaded} onLoadedData={loaded} />
+    <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover pointer-events-none`} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onWaiting={() => setWaiting(true)} onCanPlay={() => { setWaiting(false); start(); }} onLoadedData={() => start()} onPlaying={() => setWaiting(false)} onProgress={loaded} />
     {waiting && <span className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-11 h-11 rounded-full bg-black/55 grid place-items-center"><Loader2 size={22} className="animate-spin" /></span></span>}
     {!playing && !waiting && <span className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-12 h-12 rounded-full bg-black/55 grid place-items-center ring-1 ring-white/20"><Play fill="white" size={20} className="ml-0.5" /></span></span>}
     <span role="button" tabIndex={0} aria-label={muted ? 'Turn sound on' : 'Mute'} onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setMuted((m) => !m); } }} className="absolute bottom-2 right-2 z-10 w-8 h-8 rounded-full bg-black/60 grid place-items-center">{muted ? <VolumeX size={15} /> : <Volume2 size={15} />}</span>
@@ -37,7 +44,7 @@ function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, regis
   return <button type="button" onClick={click} aria-label={it.locked ? 'Locked item' : 'Open media'} className={`relative overflow-hidden rounded-card bg-black block w-full text-left ${h} ${spanFull ? 'col-span-2' : ''}`}>
     <Tag it={it} mixed={mixed} />
     {it.locked && !url ? <div className="absolute inset-0 bg-gradient-to-br from-violet/50 to-pink/40 grid place-items-center"><div className="absolute inset-0 backdrop-blur-xl bg-bg/40" /><div className="relative text-center space-y-1"><Lock className="mx-auto" /><p className="text-xs font-semibold">{it.access === 'EXCLUSIVE' ? `Unlock · ${it.pricePoints} pts` : 'Subscribe to view'}</p></div></div>
-      : url ? (video ? <div className={unwrap ? 'unwrap-reveal' : ''}><AutoVideo src={url} single={single} /></div> : <img src={url} alt="" loading="lazy" decoding="async" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover ${unwrap ? 'unwrap-reveal' : ''}`} />)
+      : url ? (video ? <div className={unwrap ? 'unwrap-reveal' : 'contents'}><AutoVideo src={url} single={single} /></div> : <img src={url} alt="" loading="lazy" decoding="async" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover ${unwrap ? 'unwrap-reveal' : ''}`} />)
       : q.isError ? <div className="absolute inset-0 grid place-items-center text-xs text-muted">Unavailable</div> : <div className="absolute inset-0 bg-card2 animate-pulse" />}
     {legacyPreview && url && <span className="absolute top-2 right-2 text-[11px] bg-bg/80 rounded-full px-2 py-1">Preview</span>}
     {unwrap && <UnwrapOverlay />}
