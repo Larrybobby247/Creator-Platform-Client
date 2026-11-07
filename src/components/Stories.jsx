@@ -28,6 +28,7 @@ export function AddStoryModal({ open, onClose }) {
       {url ? <div className="relative rounded-card overflow-hidden bg-black">{video ? <video src={url} controls className="w-full max-h-72" /> : <img src={url} alt="Status preview" className="w-full max-h-72 object-contain" />}<button className="absolute top-2 right-2 bg-bg/80 rounded-full p-1" aria-label="Remove" onClick={() => { setFile(null); setUrl(null); }}><X size={16} /></button></div>
         : <div className={`rounded-card bg-gradient-to-br ${BG[bg]} p-6 min-h-[160px] grid place-items-center`}><textarea maxLength={220} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a status…" aria-label="Status text" className="w-full bg-transparent text-center text-xl font-semibold placeholder:text-white/60 resize-none outline-none" rows={3} /></div>}
       {!url && <div className="flex gap-2 items-center flex-wrap">{Object.keys(BG).map((k) => <button key={k} aria-label={`Colour ${k}`} onClick={() => setBg(k)} className={`w-7 h-7 rounded-full bg-gradient-to-br ${BG[k]} ${bg === k ? 'ring-2 ring-white' : ''}`} />)}<span className="text-xs text-muted ml-auto">{text.length}/220</span></div>}
+      {url && <label className="block"><span className="sr-only">Caption</span><input value={text} maxLength={220} onChange={(e) => setText(e.target.value)} placeholder="Add a caption…" aria-label="Caption" className="input" /><span className="text-xs text-muted block text-right mt-1">{text.length}/220</span></label>}
       <input ref={fileRef} type="file" hidden accept="image/*,video/*" onChange={pick} />
       <button type="button" disabled={busy} onClick={() => fileRef.current.click()} className="btn-ghost w-full animate-glow"><ImagePlus size={18} />{url ? 'Choose a different photo or video' : 'Add a photo or video'}</button>
       <p className="text-xs text-muted">Videos up to {user.creatorPlan === 'PRO' && user.accountMode === 'CREATOR' ? 'the Pro' : 'your plan\'s'} length limit (checked by the server). Statuses disappear after 24 hours.</p>
@@ -44,8 +45,9 @@ const Seg = ({ state, p, buf, loading }) => <i className="relative h-[3px] flex-
     <b className="absolute inset-y-0 left-0 bg-white" style={{ width: `${p * 100}%` }} />
     {loading && <b className="absolute inset-y-0 left-0 w-1/3 bg-white/60 animate-[shimmer_1.1s_linear_infinite]" />}</> : null}</i>;
 
-export function StoryViewer({ groups, start = 0, onClose }) {
-  const qc = useQueryClient(); const { toast } = useLive(); const [gi, setGi] = useState(start); const [si, setSi] = useState(0);
+// startStoryId: open on that exact status of the group (used when you tap a status quoted inside a chat message).
+export function StoryViewer({ groups, start = 0, startStoryId, onClose }) {
+  const qc = useQueryClient(); const { toast } = useLive(); const [gi, setGi] = useState(start); const [si, setSi] = useState(() => Math.max(0, groups[start]?.stories.findIndex((x) => String(x._id) === String(startStoryId)) ?? 0));
   const [p, setP] = useState(0); const [buf, setBuf] = useState(0); const [loaded, setLoaded] = useState(false); const [waiting, setWaiting] = useState(false); const [failed, setFailed] = useState(false);
   const [hold, setHold] = useState(false); const [typing, setTyping] = useState(false); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [liked, setLiked] = useState({}); const [pop, setPop] = useState(0);
   const vid = useRef(); const g = groups[gi]; const s = g?.stories[si]; const mine = g?.source === 'me';

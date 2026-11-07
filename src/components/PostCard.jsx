@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Heart, MessageCircle, Gift, Lock, MoreHorizontal, Pin, Eye, BarChart3 } from 'lucide-react';
 import { Avatar, Badge, CreatorBadge, Err, Modal } from './ui.jsx';
 import PostMedia from './PostMedia.jsx';
+import { useUnwrap, UnwrapOverlay } from './Unwrap.jsx';
 import CommentsModal from './CommentsModal.jsx';
 import RichText from './RichText.jsx';
 import PostInsights from './PostInsights.jsx';
@@ -42,6 +43,7 @@ function EditModal({ post, creator, onClose, onSaved }) {
 function PostCard({ post, onGift, onChange }) {
   const { user } = useAuth(); const { toast } = useLive(); const ask = useConfirmSpend(); const confirm = useConfirm(); const qc = useQueryClient(); const [insights, setInsights] = useState(false);
   const [p, setP] = useState(post); const [menu, setMenu] = useState(false); const [comments, setComments] = useState(false); const [edit, setEdit] = useState(false); const [report, setReport] = useState(false); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const ref = useRef();
+  const unwrapPost = useUnwrap(!!p.locked); // exclusive / subscriber text posts: gift-wrap reveal at the moment of unlocking
   useEffect(() => setP(post), [post]); // adopt refreshed data (this is what makes an unlocked post actually open up)
   const a = p.authorId; const mine = a._id === user.id; const creatorMe = user.accountMode === 'CREATOR';
   useEffect(() => { if (mine || !ref.current) return; let t; const o = new IntersectionObserver(([e]) => { clearTimeout(t); if (e.isIntersecting) t = setTimeout(() => trackView(p._id), 1000); }, { threshold: 0.6 }); o.observe(ref.current); return () => { clearTimeout(t); o.disconnect(); }; }, [p._id, mine]);
@@ -85,8 +87,8 @@ function PostCard({ post, onGift, onChange }) {
     {p.locked ? <div className="relative rounded-card overflow-hidden bg-gradient-to-br from-violet/40 to-pink/30 p-8 grid place-items-center text-center min-h-[160px] bg-cover bg-center" style={p.coverUrl ? { backgroundImage: `url(${p.coverUrl})` } : undefined}>
         <div className="absolute inset-0 backdrop-blur-xl bg-bg/40" />
         <div className="relative space-y-2"><Lock className="mx-auto" /><p className="font-semibold">{p.access === 'EXCLUSIVE' ? 'Exclusive content' : 'Subscribers only'}</p>
-          {p.access === 'EXCLUSIVE' ? <button className="btn-primary" disabled={busy} onClick={() => unlock()}>{busy ? 'Unlocking…' : `Unlock · ${p.unlockPricePoints} pts`}</button> : <button className="btn-primary" disabled={busy} onClick={subscribe}>{busy ? 'Please wait…' : `Subscribe${a.subscriptionPricePoints ? ` · ${a.subscriptionPricePoints} pts` : ''}`}</button>}</div></div>
-      : <div className="space-y-2 animate-fade">{p.content && <RichText text={p.content} />}{p.exclusiveText && <p className="bg-card2 rounded-btn p-3 text-sm">{p.exclusiveText}</p>}</div>}
+          {p.access === 'EXCLUSIVE' ? <button className="btn-primary" disabled={busy} onClick={() => unlock()}>{busy ? 'Unlocking…' : `Unlock · ${p.unlockPricePoints} pts`}</button> : <button className="btn btn-subscribe" disabled={busy} onClick={subscribe}>{busy ? 'Please wait…' : `Subscribe${a.subscriptionPricePoints ? ` · ${a.subscriptionPricePoints} pts` : ''}`}</button>}</div></div>
+      : <div className={`relative space-y-2 ${unwrapPost ? 'overflow-hidden rounded-card min-h-[120px]' : 'animate-fade'}`}><div className={`space-y-2 ${unwrapPost ? 'unwrap-reveal' : ''}`}>{p.content && <RichText text={p.content} />}{p.exclusiveText && <p className="bg-card2 rounded-btn p-3 text-sm">{p.exclusiveText}</p>}</div>{unwrapPost && <UnwrapOverlay />}</div>}
     <Err>{err}</Err>
     <footer className="flex items-center gap-5 text-ink2 text-sm">
       <LikeButton liked={p.liked} count={p.likeCount} onClick={like} />

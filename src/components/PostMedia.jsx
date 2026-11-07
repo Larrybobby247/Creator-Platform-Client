@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Lock, Play, Crown, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { get } from '../lib/query.js';
 import MediaViewer from './MediaViewer.jsx';
+import { useUnwrap, UnwrapOverlay } from './Unwrap.jsx';
 
 // Plays by itself (muted, looping) while at least 60% of it is on screen, and pauses when you scroll away. Only one feed video plays at a time. Tap to open it full screen with sound.
 let current = null;
@@ -25,6 +26,7 @@ const Tag = ({ it, mixed }) => it.locked ? <span className="absolute top-2 left-
   : <span className="absolute top-2 left-2 z-10 flex items-center gap-1 text-[11px] font-semibold bg-violet/90 rounded-full px-2 py-1"><Crown size={11} />{it.access === 'EXCLUSIVE' ? 'Unlocked' : 'Subscriber'}</span>;
 
 function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, register, publicMode }) {
+  const unwrap = useUnwrap(!!it.locked); // plays once, right after this item goes from locked to unlocked
   const legacyPreview = it.locked && it.hasPreview;
   const path = publicMode ? `/public/posts/${post._id}/media/${it.idx}` : it.legacy ? (it.locked ? `/media/posts/${post._id}/preview` : `/media/posts/${post._id}/playback`) : `/media/posts/${post._id}/media/${it.idx}`;
   const q = useQuery({ queryKey: ['media', post._id, it.idx, it.locked], queryFn: get(path), enabled: near && (!it.locked || (legacyPreview && !publicMode)), staleTime: 4 * 60_000, retry: false });
@@ -35,9 +37,10 @@ function Cell({ post, it, single, mixed, near, onOpen, onLocked, spanFull, regis
   return <button type="button" onClick={click} aria-label={it.locked ? 'Locked item' : 'Open media'} className={`relative overflow-hidden rounded-card bg-black block w-full text-left ${h} ${spanFull ? 'col-span-2' : ''}`}>
     <Tag it={it} mixed={mixed} />
     {it.locked && !url ? <div className="absolute inset-0 bg-gradient-to-br from-violet/50 to-pink/40 grid place-items-center"><div className="absolute inset-0 backdrop-blur-xl bg-bg/40" /><div className="relative text-center space-y-1"><Lock className="mx-auto" /><p className="text-xs font-semibold">{it.access === 'EXCLUSIVE' ? `Unlock · ${it.pricePoints} pts` : 'Subscribe to view'}</p></div></div>
-      : url ? (video ? <AutoVideo src={url} single={single} /> : <img src={url} alt="" loading="lazy" decoding="async" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover`} />)
+      : url ? (video ? <div className={unwrap ? 'unwrap-reveal' : ''}><AutoVideo src={url} single={single} /></div> : <img src={url} alt="" loading="lazy" decoding="async" className={`w-full ${single ? 'max-h-[420px]' : 'h-full'} object-cover ${unwrap ? 'unwrap-reveal' : ''}`} />)
       : q.isError ? <div className="absolute inset-0 grid place-items-center text-xs text-muted">Unavailable</div> : <div className="absolute inset-0 bg-card2 animate-pulse" />}
     {legacyPreview && url && <span className="absolute top-2 right-2 text-[11px] bg-bg/80 rounded-full px-2 py-1">Preview</span>}
+    {unwrap && <UnwrapOverlay />}
   </button>;
 }
 
