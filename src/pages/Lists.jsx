@@ -9,13 +9,14 @@ import { api, ago, fmtPoints, uid } from '../lib/api';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 
+const NOTIF_ICON = { MESSAGE: '💬', STORY_LIKE: '❤️' }; // gift notifications already start with the gift's own emoji, so they get no extra icon
 export function Notifications() {
   const { setNotifUnread } = useLive(); const qc = useQueryClient();
   const q = useQuery({ queryKey: keys.notifications, queryFn: get('/notifications'), staleTime: 15_000 });
   useEffect(() => { if (q.data) setNotifUnread(q.data.unread); }, [q.data?.unread]);
   const readAll = async () => { await api('/notifications/read-all', { method: 'POST' }); qc.invalidateQueries({ queryKey: keys.notifications }); setNotifUnread(0); };
   return <div className="space-y-4"><div className="flex justify-between items-center"><h1 className="text-3xl font-bold">Notifications</h1><button className="btn-ghost !py-2" onClick={readAll}>Mark all read</button></div>
-    <Section q={q} height="h-32" isEmpty={(d) => d.items.length === 0} empty={<Empty>You're all caught up.</Empty>}>{(d) => <ul className="space-y-2">{d.items.map((n) => <li key={n._id}><Link to={n.link || '#'} onClick={() => !n.read && api(`/notifications/${n._id}/read`, { method: 'POST' }).then(() => qc.invalidateQueries({ queryKey: ['counts'] }))} className={`card !p-3 flex gap-3 items-center ${n.read ? 'opacity-60' : ''}`}>{!n.read && <i className="w-2 h-2 rounded-full bg-pink" />}<span className="flex-1 text-sm">{n.text}</span><span className="text-xs text-muted">{ago(n.createdAt)}</span></Link></li>)}</ul>}</Section></div>;
+    <Section q={q} height="h-32" isEmpty={(d) => d.items.length === 0} empty={<Empty>You're all caught up.</Empty>}>{(d) => <ul className="space-y-2">{d.items.map((n) => <li key={n._id}><Link to={n.link || '#'} onClick={() => !n.read && api(`/notifications/${n._id}/read`, { method: 'POST' }).then(() => qc.invalidateQueries({ queryKey: ['counts'] }))} className={`card !p-3 flex gap-3 items-center ${n.read ? 'opacity-60' : ''}`}>{!n.read && <i className="w-2 h-2 rounded-full bg-pink" />}{NOTIF_ICON[n.type] && <span className="text-xl leading-none" aria-hidden>{NOTIF_ICON[n.type]}</span>}<span className="flex-1 text-sm">{n.text}</span><span className="text-xs text-muted">{ago(n.createdAt)}</span></Link></li>)}</ul>}</Section></div>;
 }
 
 export function Communities() {

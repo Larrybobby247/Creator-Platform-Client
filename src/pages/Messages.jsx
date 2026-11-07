@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { keys } from '../lib/query.js';
-import { Paperclip, Mic, Send, Lock, Trash2, MoreVertical, X as XIcon, Play, Ban } from 'lucide-react';
+import { Paperclip, Mic, Send, Lock, Trash2, MoreVertical, X as XIcon, Play, Ban, Pin, Archive, Check, CornerUpLeft, UserX } from 'lucide-react';
 import { Avatar, Empty, Err, Skeleton, Modal } from '../components/ui.jsx';
 import Notes from '../components/Notes.jsx';
 import { api, ago, uid } from '../lib/api';
@@ -14,19 +14,69 @@ import { useLive } from '../context/Live.jsx';
 import MediaViewer from '../components/MediaViewer.jsx';
 import PricePrompt from '../components/PricePrompt.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
+import { StoryViewer } from '../components/Stories.jsx';
+import { useUnwrap, UnwrapOverlay } from '../components/Unwrap.jsx';
 
 // Categories depend on the account: "Subscribers" only exists for creators. Everyone can add their own categories on top.
 const baseCats = (creator) => [['all', 'All'], ['unread', 'Unread'], ['creators', 'Creators'], ['users', 'People'], ...(creator ? [['subscribers', 'Subscribers']] : []), ['requests', 'Requests'], ['paid', 'Paid'], ['archived', 'Archived']];
 const EMOJI = ['❤️', '👍', '😂', '😮', '🔥'];
 
 const BGS = { violet: 'from-violet to-pink', pink: 'from-pink to-violet', blue: 'from-info to-violet', green: 'from-ok to-info', amber: 'from-warn to-pink', teal: 'from-teal-500 to-emerald-700', red: 'from-red-500 to-rose-800', orange: 'from-orange-400 to-red-500', indigo: 'from-indigo-500 to-blue-800', slate: 'from-slate-500 to-slate-900' };
-// The status a message replies to, quoted above the message (like WhatsApp).
-function StoryRef({ r, mine, meId }) {
+// A small picture of the status while it is still live (a photo, or a frame about a second into a video). Once the status has expired or been
+// deleted the server refuses the media, so it falls back to the camera / film icon automatically.
+function StoryThumb({ r }) {
+  const live = !r.expiresAt || new Date(r.expiresAt) > new Date();
+  const q = useQuery({ queryKey: ['story-media', r.storyId], queryFn: get(`/stories/${r.storyId}/media`), enabled: r.kind !== 'TEXT' && !!r.hasMedia && live, staleTime: 4 * 60_000, retry: false });
+  const url = live && !q.isError ? q.data?.url : null;
+  if (r.kind === 'TEXT') return <span className="text-[9px] font-bold text-white px-1 line-clamp-3 break-words text-center leading-tight">{(r.text || '').slice(0, 24)}</span>;
+  if (url) return r.kind === 'VIDEO'
+    ? <><video src={`${url}#t=1`} preload="metadata" muted playsInline className="absolute inset-0 w-full h-full object-cover pointer-events-none" /><span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 grid place-items-center"><Play size={8} fill="white" /></span></>
+    : <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />;
+  return <span className="text-lg">{r.kind === 'VIDEO' ? '🎬' : '📷'}</span>;
+}
+// The status a message replies to, quoted above the message (like WhatsApp). Tap it to open that status.
+function StoryRef({ r, mine, meId, onOpen }) {
   const theirs = String(r.authorId) !== String(meId); // the status belongs to the other person
-  return <div className="rounded-btn overflow-hidden bg-black/25 flex border-l-4 border-pink max-w-full" aria-label="Replied status">
+  return <button type="button" onClick={(e) => { e.stopPropagation(); onOpen?.(r); }} className="rounded-btn overflow-hidden bg-black/25 flex border-l-4 border-pink max-w-full w-full text-left active:bg-black/40" aria-label="Open this status">
     <div className="min-w-0 flex-1 px-2.5 py-1.5"><p className="text-[11px] font-semibold text-pink">{mine && theirs ? 'You replied to their status' : !mine && !theirs ? 'Replied to your status' : 'Status'}</p>
       <p className="text-xs opacity-80 truncate">{r.kind === 'TEXT' ? (r.text || 'Status') : r.kind === 'VIDEO' ? '🎬 Video status' : '📷 Photo status'}{r.kind !== 'TEXT' && r.text ? ` · ${r.text}` : ''}</p></div>
-    <div className={`w-12 shrink-0 grid place-items-center text-lg ${r.kind === 'TEXT' ? `bg-gradient-to-br ${BGS[r.bg] || BGS.violet}` : 'bg-black/40'}`}>{r.kind === 'TEXT' ? <span className="text-[9px] font-bold text-white px-1 line-clamp-3 break-words text-center leading-tight">{(r.text || '').slice(0, 24)}</span> : r.kind === 'VIDEO' ? '🎬' : '📷'}</div></div>;
+    <div className={`relative w-14 min-h-[3rem] shrink-0 grid place-items-center overflow-hidden ${r.kind === 'TEXT' ? `bg-gradient-to-br ${BGS[r.bg] || BGS.violet}` : 'bg-black/40'}`}><StoryThumb r={r} /></div></button>;
+}
+// Drag a message to the right to reply to it (touch / pen; on a mouse use the ⋮ menu). Vertical scrolling is untouched.
+function SwipeRow({ onReply, disabled, className = '', children }) {
+  const st = useRef(null); const dxRef = useRef(0); const [dx, setDx] = useState(0);
+  const down = (e) => { if (disabled || e.pointerType === 'mouse' || e.target.closest?.('audio,video,input,textarea')) return; st.current = { x: e.clientX, y: e.clientY, lock: null, buzzed: false }; };
+  const move = (e) => { const x = st.current; if (!x) return; const mx = e.clientX - x.x, my = e.clientY - x.y;
+    if (!x.lock && (Math.abs(mx) > 10 || Math.abs(my) > 10)) x.lock = mx > 0 && Math.abs(mx) > Math.abs(my) * 1.4 ? 'x' : 'y';
+    if (x.lock === 'x') { const d = Math.min(mx, 110); const eased = d > 60 ? 60 + (d - 60) * 0.3 : d; dxRef.current = eased; setDx(eased); if (eased >= 56 && !x.buzzed) { x.buzzed = true; navigator.vibrate?.(12); } } };
+  const end = () => { const x = st.current; st.current = null; const fire = x?.lock === 'x' && dxRef.current >= 56; dxRef.current = 0; setDx(0); if (fire) onReply(); };
+  return <div className="relative touch-pan-y" onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+    <span aria-hidden className="absolute left-1 top-1/2 w-8 h-8 rounded-full bg-card2 grid place-items-center text-violet-light pointer-events-none" style={{ opacity: Math.min(1, dx / 36), transform: `translateY(-50%) scale(${0.6 + (Math.min(dx, 56) / 56) * 0.5})` }}><CornerUpLeft size={16} /></span>
+    <div className={className} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .2s ease' }}>{children}</div></div>;
+}
+// Emoji bottom sheet for reactions: a bigger grid, plus a box that takes whatever emoji you pick on your phone's own emoji keyboard.
+const MORE_EMOJI = '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 😉 😍 🥰 😘 😋 😜 🤪 🤗 🤭 🤔 😐 😏 😒 🙄 😬 😌 😔 😴 😷 🥵 🥶 😎 🤓 😕 😟 😮 😲 😳 🥺 😢 😭 😱 😤 😡 🤬 💀 👻 🙈 🙊 💋 💯 🔥 ✨ 🎉 🎁 💎 👑 🌹 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💕 💞 👍 👎 👏 🙌 🙏 💪 🤝 👀 🫶 🤞 ✌️ 👌 🤌 🐉 🍑 🍆 💦 😈'.split(' ');
+const pickEmoji = (t) => { const parts = typeof Intl !== 'undefined' && Intl.Segmenter ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(t)].map((x) => x.segment) : Array.from(t); return parts.find((g) => /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u.test(g)) || null; };
+function EmojiSheet({ onPick, onClose }) {
+  const [v, setV] = useState('');
+  return <div className="fixed inset-0 z-[60] bg-black/50 animate-fade" onClick={onClose}>
+    <div className="absolute inset-x-0 bottom-0 mx-auto max-w-3xl bg-card border-t border-line rounded-t-modal p-3 space-y-2 animate-sheet" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-2"><input value={v} onChange={(e) => { const e1 = pickEmoji(e.target.value); if (e1) onPick(e1); else setV(e.target.value.slice(0, 2)); }} className="input" placeholder="Tap here, then use your keyboard’s 😊 emoji" aria-label="Type an emoji with your keyboard" autoComplete="off" /><button className="btn-ghost !px-3" onClick={onClose} aria-label="Close"><XIcon size={18} /></button></div>
+      <div className="grid grid-cols-8 gap-1 max-h-52 overflow-y-auto">{MORE_EMOJI.map((e) => <button key={e} onClick={() => onPick(e)} className="text-2xl p-1 rounded hover:bg-card2 active:scale-75 transition" aria-label={`React ${e}`}>{e}</button>)}</div></div></div>;
+}
+// A paid message. Locked photo/video: a very blurry teaser (a tiny thumbnail the server made, never the real file) with the unlock button on top.
+// When it is unlocked the gift-wrap animation plays. For the creator who sent it, the label turns green with a ✓ as soon as someone has paid.
+function PaidBody({ m, mine, onUnlock }) {
+  const wrap = useUnwrap(!!m.locked); const media = ['IMAGE', 'VIDEO', 'VOICE'].includes(m.type);
+  if (m.locked && media) return <div className="space-y-1"><div className="relative w-52 max-w-full h-44 rounded-btn overflow-hidden bg-gradient-to-br from-violet/60 to-pink/50">
+      {m.blurPreview && <img src={m.blurPreview} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl" />}
+      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 grid place-items-center p-2">{mine ? <span className="flex items-center gap-1 text-xs font-semibold bg-black/50 rounded-full px-3 py-1.5"><Lock size={12} />{m.price} pts</span> : <button className="btn-primary unlock-glow !py-2 !px-4 shadow-lg" onClick={onUnlock}><Lock size={14} />Unlock · {m.price} pts</button>}</div></div>{m.text && <p>{m.text}</p>}</div>;
+  if (m.locked) return <div className="space-y-2"><p className="flex items-center gap-1"><Lock size={14} /> {m.text || 'Paid message'}</p>{!mine && <button className="btn-primary unlock-glow !py-2 w-full" onClick={onUnlock}>Unlock · {m.price} pts</button>}</div>;
+  return <div className={`relative space-y-1 ${wrap ? 'overflow-hidden rounded-btn min-h-[140px]' : ''}`}>
+    <div className={`space-y-1 ${wrap ? 'unwrap-reveal' : ''}`}>{m.mediaId && <MediaBubble m={m} />}{m.paidText && <p className="bg-black/20 rounded p-2">{m.paidText}</p>}{m.text && !m.paidText && <p>{m.text}</p>}</div>
+    {wrap && <UnwrapOverlay />}
+    {m.price > 0 && mine && <p className="text-[10px]"><span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold ${m.paidCount > 0 ? 'bg-black/40 text-ok' : 'bg-black/25 text-white/80'}`}>{m.paidCount > 0 && <Check size={11} strokeWidth={3} />}Paid</span> <span className="opacity-70">· {m.price} pts</span></p>}</div>;
 }
 function MediaBubble({ m }) {
   const [url, setUrl] = useState(null); const [view, setView] = useState(false);
@@ -47,6 +97,7 @@ export default function Messages() {
   const labelsQ = useQuery({ queryKey: ['labels'], queryFn: get('/messages/labels'), staleTime: 60_000 }); const labels = labelsQ.data?.items || []; const [labelMenu, setLabelMenu] = useState(false); const [newLabel, setNewLabel] = useState(''); const [subsOnly, setSubsOnly] = useState(null);
   const [msgs, setMsgs] = useState([]); const [text, setText] = useState(''); const [tab, setTab] = useState('chat'); const [err, setErr] = useState('');
   const [typing, setTyping] = useState(false); const [seen, setSeen] = useState(false); const [reply, setReply] = useState(null); const [react, setReact] = useState(null);
+  const [more, setMore] = useState(null); const [burst, setBurst] = useState(null); const [storyView, setStoryView] = useState(null); const [sheet, setSheet] = useState(null); const [topMenu, setTopMenu] = useState(false); const lp = useRef({ t: null, fired: false});
   const [rec, setRec] = useState(null); const [recSec, setRecSec] = useState(0); const [pricing, setPricing] = useState(null); const [msgMenu, setMsgMenu] = useState(null); const [paid, setPaid] = useState(false); const [pf, setPf] = useState({ teaser: '', paidText: '', price: 3 }); const [up, setUp] = useState(false); const cancelRec = useRef(false);
   const bottom = useRef(); const typingTimer = useRef(); const lastTyping = useRef(0); const fileRef = useRef(); const recRef = useRef();
   const openRef = useRef(null); openRef.current = open;
@@ -109,7 +160,26 @@ export default function Messages() {
   useEffect(() => { if (!rec) return; const t = setInterval(() => setRecSec(Math.round((Date.now() - rec) / 1000)), 500); return () => clearInterval(t); }, [rec]);
   const sendPaid = async () => { try { const o = other(open); const m = await api('/messages/paid', { method: 'POST', body: { toUserId: o._id, teaser: pf.teaser || 'Paid message', paidText: pf.paidText, price: Number(pf.price) } }); setMsgs((x) => [...x, m]); setPaid(false); setPf({ teaser: '', paidText: '', price: 3 }); afterDraft(o); } catch (x) { setErr(x.message); } };
   const unlock = async (m) => { if (!(await ask({ title: 'Unlock this message?', detail: 'Pay to reveal the paid message.', points: m.price, confirmLabel: 'Unlock' }))) return; try { const d = await api(`/messages/message/${m._id}/unlock`, { method: 'POST' }); setMsgs((ms) => ms.map((x) => x._id === m._id ? d : x)); window.dispatchEvent(new Event('wallet:changed')); } catch (x) { toast(x.code === 'INSUFFICIENT_POINTS' ? 'Not enough points. Top up in your wallet.' : x.message); } };
-  const reactTo = async (m, emoji) => { setReact(null); const mine = m.reactions?.find((r) => r.userId === user.id)?.emoji === emoji; const d = await api(`/messages/message/${m._id}/react`, { method: 'POST', body: { emoji, remove: mine } }); setMsgs((ms) => ms.map((x) => x._id === m._id ? { ...x, reactions: d.reactions } : x)); };
+  const reactTo = async (m, emoji) => { setReact(null); setMore(null); const had = m.reactions?.find((r) => r.userId === user.id)?.emoji === emoji;
+    const apply = (rs) => setMsgs((ms) => ms.map((x) => x._id === m._id ? { ...x, reactions: rs } : x));
+    apply([...(m.reactions || []).filter((r) => r.userId !== user.id), ...(had ? [] : [{ userId: user.id, emoji }])]); // instant, then confirmed by the server
+    if (!had) { const k = Date.now(); setBurst({ id: m._id, emoji, k }); setTimeout(() => setBurst((b) => (b?.k === k ? null : b)), 1000); navigator.vibrate?.(10); }
+    try { const d = await api(`/messages/message/${m._id}/react`, { method: 'POST', body: { emoji, remove: had } }); apply(d.reactions); } catch (x) { apply(m.reactions || []); toast(x.message); } };
+  // Tap the status quoted in a message: open it in the status viewer, if it is still live.
+  const openStory = async (r) => { try { const d = await api(`/stories/user/${r.authorId}`); const g = d.group; if (!g || !g.stories.some((x) => String(x._id) === String(r.storyId))) return toast('This status is no longer available.'); setStoryView({ group: { ...g, source: String(r.authorId) === user.id ? 'me' : g.source }, storyId: r.storyId }); } catch { toast('This status is no longer available.'); } };
+  // Chat list actions (long-press a chat): pin, archive, block, delete one chat; delete all chats from the top menu.
+  const pinLimit = creator && user.creatorPlan === 'PRO' ? 5 : 3;
+  const pressStart = (c) => () => { lp.current.fired = false; clearTimeout(lp.current.t); lp.current.t = setTimeout(() => { lp.current.fired = true; navigator.vibrate?.(15); setSheet(c); }, 450); };
+  const pressEnd = () => clearTimeout(lp.current.t);
+  const sheetAct = async (kind) => { const c = sheet; if (!c) return; const o = other(c); setSheet(null);
+    try {
+      if (kind === 'pin') { const d = await api(`/messages/${c._id}/pin`, { method: 'POST' }); toast(d.pinned ? 'Chat pinned' : 'Chat unpinned'); }
+      else if (kind === 'archive') { await api(`/messages/${c._id}/${cat === 'archived' ? 'unarchive' : 'archive'}`, { method: 'POST' }); toast(cat === 'archived' ? 'Moved back to your inbox' : 'Archived'); }
+      else if (kind === 'block') { if (!(await confirm({ title: `Block @${o.username}?`, detail: 'You will no longer see each other’s posts or be able to message. You can unblock them in Settings.', confirmLabel: 'Block', danger: true }))) return; await api(`/block/${o._id}`, { method: 'POST' }); await api(`/messages/${c._id}/archive`, { method: 'POST' }).catch(() => {}); toast(`Blocked @${o.username}`); }
+      else if (kind === 'delete') { if (!(await confirm({ title: 'Delete this chat?', detail: 'The conversation is removed from your list and your copy of its messages is cleared. The other person keeps theirs.', confirmLabel: 'Delete chat', danger: true }))) return; await api(`/messages/${c._id}/delete`, { method: 'POST' }); toast('Chat deleted'); }
+      loadList(); refreshCounts();
+    } catch (x) { toast(x.message); } };
+  const deleteAll = async () => { setTopMenu(false); if (!(await confirm({ title: 'Delete all chats?', detail: 'Every conversation is removed from your list and your copy of all messages is cleared. Other people keep theirs. This cannot be undone.', confirmLabel: 'Delete all', danger: true }))) return; try { const d = await api('/messages/delete-all', { method: 'POST' }); toast(d.count ? 'All chats deleted' : 'Nothing to delete'); loadList(); refreshCounts(); } catch (x) { toast(x.message); } };
   const onType = (v) => { setText(v); if (open && !open.draft && Date.now() - lastTyping.current > 1500) { lastTyping.current = Date.now(); socket?.emit('typing', { conversationId: open._id }); } };
   const addLabel = async () => { const name = newLabel.trim(); if (!name) return; try { await api('/messages/labels', { method: 'POST', body: { name } }); setNewLabel(''); labelsQ.refetch(); } catch (x) { toast(x.message); } };
   const delLabel = async (l) => { if (!(await confirm({ title: `Delete the category “${l.name}”?`, detail: 'Conversations stay; only the category is removed.', confirmLabel: 'Delete', danger: true }))) return; await api(`/messages/labels/${l._id}`, { method: 'DELETE' }); if (cat === `label:${l._id}`) setCat('all'); labelsQ.refetch(); loadList(); };
@@ -141,21 +211,21 @@ export default function Messages() {
           {msgs.length === 0 && <Empty>Say hi 👋</Empty>}
           {msgs.map((m) => { const mine = m.senderId === user.id; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
             if (m.deletedForAll) return <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><p className="text-xs italic text-muted border border-line rounded-card px-3 py-2 flex items-center gap-1"><Ban size={12} />{mine ? 'You deleted this message' : 'This message was deleted'}</p></div>;
-            return <div key={m._id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+            return <SwipeRow key={m._id} disabled={m.pending || m.failed} onReply={() => setReply(m)} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
               <div className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
-                {m.storyRef && <StoryRef r={m.storyRef} mine={mine} meId={user.id} />}
+                {m.storyRef && <StoryRef r={m.storyRef} mine={mine} meId={user.id} onOpen={openStory} />}
                 {rp && <p className="text-xs opacity-70 border-l-2 border-white/40 pl-2 truncate">{rp.deletedForAll ? 'Deleted message' : rp.locked ? 'Paid message' : rp.text || 'Attachment'}</p>}
-                {m.locked ? <div className="space-y-2"><p className="flex items-center gap-1"><Lock size={14} /> {m.text || 'Paid message'}</p>{!mine && <button className="btn-primary !py-2 w-full" onClick={() => unlock(m)}>Unlock · {m.price} pts</button>}</div>
-                  : <>{m.mediaId && <MediaBubble m={m} />}{m.paidText && <p className="bg-black/20 rounded p-2">{m.paidText}</p>}{m.text && !m.paidText && <p>{m.text}</p>}{m.price > 0 && mine && <p className="text-[10px] opacity-70">Paid · {m.price} pts</p>}</>}
-                {react === m._id && <div className={`absolute -top-10 ${mine ? 'right-0' : 'left-0'} max-w-[88vw] bg-card border border-line rounded-full px-2 py-1 flex gap-1 z-20 shadow-lg animate-pop`}>{EMOJI.map((e) => <button key={e} onClick={() => reactTo(m, e)}>{e}</button>)}</div>}</div>
-              {Object.keys(grouped).length > 0 && <div className="flex gap-1 -mt-1 text-xs bg-card border border-line rounded-full px-2 py-0.5">{Object.entries(grouped).map(([e, n]) => <span key={e}>{e}{n > 1 && n}</span>)}</div>}
+                {(m.locked || m.mediaId || m.paidText || m.price > 0) ? <PaidBody m={m} mine={mine} onUnlock={() => unlock(m)} /> : m.text && <p>{m.text}</p>}
+                {burst?.id === m._id && <span key={burst.k} className="react-float" aria-hidden>{burst.emoji}</span>}
+                {react === m._id && <div className={`absolute -top-10 ${mine ? 'right-0' : 'left-0'} max-w-[88vw] bg-card border border-line rounded-full px-2 py-1 flex gap-1 z-20 shadow-lg animate-pop`}>{EMOJI.map((e) => <button key={e} className="active:scale-75 transition" onClick={() => reactTo(m, e)}>{e}</button>)}<button className="w-6 h-6 rounded-full bg-card2 grid place-items-center text-sm leading-none" aria-label="More emoji" onClick={() => { setMore(m); setReact(null); }}>+</button></div>}</div>
+              {Object.keys(grouped).length > 0 && <div className="flex gap-1 -mt-1 text-xs bg-card border border-line rounded-full px-2 py-0.5">{Object.entries(grouped).map(([e, n]) => <span key={e} className={burst?.id === m._id && burst.emoji === e ? 'react-chip-pop inline-block' : ''}>{e}{n > 1 && n}</span>)}</div>}
               <span className="relative text-[10px] text-muted mt-0.5 flex items-center gap-1">{m.failed ? 'Failed to send' : m.pending ? 'Sending…' : ago(m.createdAt)}{mine && m === lastMine && seen && !m.pending ? ' · Seen' : ''}
                 {!m.pending && !m.failed && <button aria-label="Message options" aria-expanded={msgMenu === m._id} className="p-1 text-ink2" onClick={() => setMsgMenu(msgMenu === m._id ? null : m._id)}><MoreVertical size={14} /></button>}
                 {msgMenu === m._id && <div className={`absolute z-20 bottom-full mb-1 ${mine ? 'right-0' : 'left-0'} w-48 bg-card2 border border-line rounded-btn text-sm text-ink overflow-hidden animate-fade`}>
                   <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReply(m); setMsgMenu(null); }}>Reply</button>
                   <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReact(m._id); setMsgMenu(null); }}>React</button>
                   <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => delMsg(m, 'me')}><Trash2 size={14} />Delete for me</button>
-                  {mine && <button className="block w-full text-left px-3 py-2 hover:bg-line text-bad flex items-center gap-2" onClick={() => delMsg(m, 'everyone')}><Trash2 size={14} />Delete for everyone</button>}</div>}</span></div>; })}
+                  {mine && <button className="block w-full text-left px-3 py-2 hover:bg-line text-bad flex items-center gap-2" onClick={() => delMsg(m, 'everyone')}><Trash2 size={14} />Delete for everyone</button>}</div>}</span></SwipeRow>; })}
           {typing && <div className="bg-card2 w-14 px-3 py-2 rounded-card text-muted tracking-widest animate-pulse">•••</div>}<div ref={bottom} /></div>
         <Err>{err}</Err>
         {reply && <div className="text-xs bg-card2 rounded-t-btn px-3 py-2 flex justify-between"><span className="truncate">Replying to: {reply.locked ? 'Paid message' : reply.text || 'Attachment'}</span><button onClick={() => setReply(null)} aria-label="Cancel reply">×</button></div>}
@@ -166,17 +236,26 @@ export default function Messages() {
           {text.trim() ? <button className="btn-primary">Send</button> : <button type="button" className="btn-ghost !px-3" aria-label="Record voice message" onClick={startRec}><Mic size={18} /></button>}
           {user.accountMode === 'CREATOR' && <button type="button" className="btn-ghost !px-3" aria-label="Send paid message" onClick={() => setPaid(true)}>💰</button>}</form>}</>}
       <Modal open={paid} onClose={() => setPaid(false)} title="Paid message"><div className="space-y-3"><input className="input" placeholder="Teaser the buyer sees first" value={pf.teaser} onChange={(e) => setPf({ ...pf, teaser: e.target.value })} /><textarea className="input min-h-[90px]" placeholder="Hidden message (revealed after payment)" value={pf.paidText} onChange={(e) => setPf({ ...pf, paidText: e.target.value })} /><label className="block text-sm">Price (points)<input type="number" min={1} className="input mt-1" value={pf.price} onChange={(e) => setPf({ ...pf, price: e.target.value })} /></label><button className="btn-primary w-full" disabled={!pf.paidText} onClick={sendPaid}>Send · {pf.price} pts</button><p className="text-xs text-muted">To sell a photo, video or voice note, just attach it: you will be asked whether it is free or paid.</p></div></Modal>
+    {more && <EmojiSheet onPick={(e) => reactTo(more, e)} onClose={() => setMore(null)} />}
+    {storyView && <StoryViewer groups={[storyView.group]} start={0} startStoryId={storyView.storyId} onClose={() => setStoryView(null)} />}
     {(react || msgMenu) && <div className="fixed inset-0 z-[15]" aria-hidden onClick={() => { setReact(null); setMsgMenu(null); }} onTouchStart={() => { setReact(null); setMsgMenu(null); }} />}
     {pricing && <PricePrompt title={pricing.file.type.startsWith('audio') ? 'Voice message: free or paid?' : 'Free or paid?'} noun={pricing.file.type.startsWith('audio') ? 'this voice message' : 'this file'} defaultPrice={user.services?.paidVoice?.pricePoints || 3} onClose={() => setPricing(null)} onDone={({ price }) => { const f = pricing.file; setPricing(null); sendFile(f, price > 0 ? { price } : {}); }} />}
     </div></div>, document.body); }
 
-  return <div className="space-y-4"><h1 className="text-3xl font-bold">Messages</h1>
+  return <div className="space-y-4"><div className="flex justify-between items-center relative"><h1 className="text-3xl font-bold">Messages</h1><button className="btn-ghost !px-3" onClick={() => setTopMenu(!topMenu)} aria-label="Message options" aria-expanded={topMenu}><MoreVertical size={18} /></button>{topMenu && <><div className="fixed inset-0 z-10" onClick={() => setTopMenu(false)} /><div className="absolute right-0 top-full mt-1 z-20 w-52 bg-card2 border border-line rounded-btn text-sm overflow-hidden animate-fade"><button className="block w-full text-left px-3 py-2.5 hover:bg-line text-bad flex items-center gap-2" onClick={deleteAll}><Trash2 size={14} />Delete all chats</button></div></>}</div>
     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1" role="tablist">{baseCats(creator).map(([k, l]) => <button key={k} role="tab" aria-selected={cat === k} onClick={() => setCat(k)} className={`chip ${cat === k ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{l}</button>)}
       {labels.map((l) => <span key={l._id} className={`chip flex items-center gap-1 ${cat === `label:${l._id}` ? 'bg-pink/80 border-pink' : 'border-line text-ink2'}`}><button role="tab" aria-selected={cat === `label:${l._id}`} onClick={() => setCat(`label:${l._id}`)}>{l.name}</button><button aria-label={`Delete category ${l.name}`} className="text-muted hover:text-bad leading-none" onClick={() => delLabel(l)}>×</button></span>)}
       <span className="chip border-dashed border-line flex items-center gap-1"><input className="bg-transparent w-24 text-sm outline-none placeholder:text-muted" placeholder="+ New category" value={newLabel} maxLength={24} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addLabel()} aria-label="New category name" /></span></div><Err>{err}</Err>
     {convQ.isError ? <Err>{convQ.error.message}</Err> : !list ? <Skeleton className="h-40" /> : list.length === 0 ? <Empty>No conversations here yet.</Empty> :
-      <ul className="space-y-2">{list.map((c) => { const o = other(c); return <li key={c._id}><button onClick={() => setOpen(c)} className="card !p-3 w-full text-left flex items-center gap-3">
+      <><p className="text-xs text-muted -mt-2">Hold a chat to pin, archive, block or delete it.</p><ul className="space-y-2">{list.map((c) => { const o = other(c); return <li key={c._id}><button onClick={() => { if (lp.current.fired) { lp.current.fired = false; return; } setOpen(c); }} onPointerDown={pressStart(c)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onPointerCancel={pressEnd} onContextMenu={(e) => { e.preventDefault(); setSheet(c); }} style={{ WebkitTouchCallout: 'none' }} className="card !p-3 w-full text-left flex items-center gap-3 select-none">
         <span className="relative"><Avatar user={o} />{(presence?.[o._id] ?? c.online) && <i className="absolute bottom-0 right-0 w-3 h-3 bg-ok rounded-full ring-2 ring-card" />}</span>
-        <span className="min-w-0 flex-1"><span className="flex justify-between"><b className="truncate">{o.displayName || o.username}</b><span className="text-xs text-muted">{c.lastMessageAt && ago(c.lastMessageAt)}</span></span><span className={`block truncate text-sm ${c.unreadCount ? 'text-ink font-medium' : 'text-ink2'}`}>{c.lastMessageText}</span></span>
-        {cat === 'archived' && <span role="button" tabIndex={0} className="chip border-line text-xs" onClick={async (e) => { e.stopPropagation(); await api(`/messages/${c._id}/unarchive`, { method: 'POST' }); toast('Moved back to your inbox'); loadList(); }}>Unarchive</span>}{c.unreadCount > 0 && <span className="bg-pink text-[11px] font-bold rounded-full min-w-[20px] h-5 grid place-items-center px-1">{c.unreadCount}</span>}</button></li>; })}</ul>}</div>;
+        <span className="min-w-0 flex-1"><span className="flex justify-between"><b className="truncate">{o.displayName || o.username}</b><span className="text-xs text-muted flex items-center gap-1">{c.pinned && <Pin size={12} className="text-violet-light" aria-label="Pinned" />}{c.lastMessageAt && ago(c.lastMessageAt)}</span></span><span className={`block truncate text-sm ${c.unreadCount ? 'text-ink font-medium' : 'text-ink2'}`}>{c.lastMessageText}</span></span>
+        {cat === 'archived' && <span role="button" tabIndex={0} className="chip border-line text-xs" onClick={async (e) => { e.stopPropagation(); await api(`/messages/${c._id}/unarchive`, { method: 'POST' }); toast('Moved back to your inbox'); loadList(); }}>Unarchive</span>}{c.unreadCount > 0 && <span className="bg-pink text-[11px] font-bold rounded-full min-w-[20px] h-5 grid place-items-center px-1">{c.unreadCount}</span>}</button></li>; })}</ul></>}
+    {sheet && (() => { const o = other(sheet); const pinned = list?.filter((c) => c.pinned).length || 0; const Row = ({ icon: I, label, sub, danger, onClick }) => <button className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-card2 ${danger ? 'text-bad' : ''}`} onClick={onClick}><I size={18} /><span className="flex-1">{label}{sub && <span className="block text-xs text-muted">{sub}</span>}</span></button>;
+      return <div className="fixed inset-0 z-[60] bg-black/50 animate-fade" onClick={() => setSheet(null)}><div className="absolute inset-x-0 bottom-0 mx-auto max-w-md bg-card border-t border-line rounded-t-modal overflow-hidden animate-sheet" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Chat options">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-divider"><Avatar user={o} size={36} /><b className="truncate">{o.displayName || o.username}</b></div>
+        <Row icon={Pin} label={sheet.pinned ? 'Unpin chat' : 'Pin chat'} sub={sheet.pinned ? '' : `${pinned} of ${pinLimit} pinned${pinLimit === 3 ? ' · Pro creators can pin 5' : ''}`} onClick={() => sheetAct('pin')} />
+        <Row icon={Archive} label={cat === 'archived' ? 'Unarchive' : 'Archive'} onClick={() => sheetAct('archive')} />
+        <Row icon={UserX} label={`Block @${o.username}`} danger onClick={() => sheetAct('block')} />
+        <Row icon={Trash2} label="Delete chat" danger onClick={() => sheetAct('delete')} /></div></div>; })()}</div>;
 }
