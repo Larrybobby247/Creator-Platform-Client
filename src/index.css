@@ -315,3 +315,46 @@
 body { transition: background-color .25s ease, color .25s ease; }
 
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+
+/* ---------- Unwrap (exclusive content gift-wrap reveal) ---------- */
+.unwrap { position: absolute; inset: 0; z-index: 20; pointer-events: none; perspective: 900px; border-radius: inherit; }
+.unwrap-door { position: absolute; top: 0; bottom: 0; width: 50.4%; backface-visibility: hidden; animation: .75s cubic-bezier(.65, 0, .25, 1) .55s both; box-shadow: inset 0 0 36px rgba(0, 0, 0, .28);
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .09) 0 8px, transparent 8px 18px), linear-gradient(135deg, #7c3aed, #ec4899 70%, #f59e0b); }
+.unwrap-l { left: 0; transform-origin: left center; animation-name: unwrap-open-l; }
+.unwrap-r { right: 0; transform-origin: right center; animation-name: unwrap-open-r; }
+.unwrap-rib-v, .unwrap-rib-h { position: absolute; background: linear-gradient(90deg, #f59e0b, #fde68a 50%, #f59e0b); box-shadow: 0 0 10px rgba(253, 230, 138, .7); }
+.unwrap-rib-v { left: 50%; top: 0; bottom: 0; width: 14px; margin-left: -7px; animation: unwrap-rib-v .5s ease-in .3s both; }
+.unwrap-rib-h { top: 50%; left: 0; right: 0; height: 14px; margin-top: -7px; background: linear-gradient(180deg, #f59e0b, #fde68a 50%, #f59e0b); animation: unwrap-rib-h .5s ease-in .3s both; }
+.unwrap-bow { position: absolute; left: 50%; top: 50%; font-size: 46px; line-height: 1; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35)); animation: unwrap-bow 1.05s ease both; }
+.unwrap-spark { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3px; border-radius: 9999px; animation: unwrap-spark .9s ease-out both; }
+.unwrap-reveal { animation: unwrap-reveal 1.15s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes unwrap-open-l { to { transform: rotateY(-108deg); opacity: 0; } }
+@keyframes unwrap-open-r { to { transform: rotateY(108deg); opacity: 0; } }
+@keyframes unwrap-rib-v { to { transform: translateY(-110%); opacity: 0; } }
+@keyframes unwrap-rib-h { to { transform: translateX(110%); opacity: 0; } }
+@keyframes unwrap-bow {
+  0% { transform: translate(-50%, -50%) scale(.5) rotate(-12deg); opacity: 0; }
+  20% { transform: translate(-50%, -50%) scale(1.12) rotate(7deg); opacity: 1; }
+  38% { transform: translate(-50%, -50%) scale(1) rotate(-5deg); }
+  55% { transform: translate(-50%, -50%) scale(1.3) rotate(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+}
+@keyframes unwrap-spark { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(var(--x), var(--y)) scale(0); opacity: 0; } }
+@keyframes unwrap-reveal { 0%, 45% { transform: scale(.94); filter: brightness(1.7) saturate(1.4) blur(3px); } 100% { transform: none; filter: none; } }
+
+/* ---------- Reaction animation ---------- */
+.react-float { position: absolute; bottom: -6px; right: 8px; font-size: 30px; pointer-events: none; z-index: 25; animation: react-float .95s cubic-bezier(.2, .8, .3, 1) both; }
+.react-chip-pop { animation: react-chip .5s cubic-bezier(.2, 1.8, .4, 1) both; }
+@keyframes react-float { 0% { transform: translateY(0) scale(.3); opacity: 0; } 20% { transform: translateY(-14px) scale(1.5); opacity: 1; } 100% { transform: translateY(-64px) scale(1); opacity: 0; } }
+@keyframes react-chip { 0% { transform: scale(.2); } 60% { transform: scale(1.5); } 100% { transform: scale(1); } }
+
+/* ---------- Subscribe button: its own colour (gold-to-coral, nothing else on the site uses it) with a soft glow ---------- */
+.btn-subscribe { position: relative; overflow: hidden; color: #1b1203; font-weight: 700; background: linear-gradient(135deg, #fbbf24, #fb7185); animation: sub-glow 2s ease-in-out infinite; }
+.btn-subscribe:hover { filter: brightness(1.08); }
+.btn-subscribe:disabled { animation: none; filter: saturate(.6); }
+.btn-subscribe::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .55) 50%, transparent 70%); transform: translateX(-120%); animation: sub-sheen 3.2s ease-in-out infinite; }
+.btn-subscribe:disabled::after { animation: none; display: none; }
+@keyframes sub-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, .55), 0 0 14px rgba(251, 191, 36, .35); } 50% { box-shadow: 0 0 0 9px rgba(251, 113, 133, 0), 0 0 30px rgba(251, 113, 133, .6); } }
+@keyframes sub-sheen { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+.unlock-glow { animation: sub-glow 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .btn-subscribe, .btn-subscribe::after, .unlock-glow, .react-float, .react-chip-pop { animation: none; } }
