@@ -15,6 +15,7 @@ import MediaViewer from '../components/MediaViewer.jsx';
 import PricePrompt from '../components/PricePrompt.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { StoryViewer } from '../components/Stories.jsx';
+import { enablePush, pushSupported } from '../lib/push.js';
 import { useUnwrap, UnwrapOverlay } from '../components/Unwrap.jsx';
 
 // Categories depend on the account: "Subscribers" only exists for creators. Everyone can add their own categories on top.
@@ -91,7 +92,7 @@ function MediaBubble({ m }) {
 }
 
 export default function Messages() {
-  const { user } = useAuth(); const { socket, presence, refreshCounts, toast } = useLive(); const confirm = useConfirm(); const [sp] = useSearchParams(); const ask = useConfirmSpend(); const creator = user.accountMode === 'CREATOR';
+  const { user, refresh } = useAuth(); const [pushHidden, setPushHidden] = useState(() => { try { return localStorage.getItem('pushPromptHidden') === '1'; } catch { return false; } }); const { socket, presence, refreshCounts, toast } = useLive(); const confirm = useConfirm(); const [sp] = useSearchParams(); const ask = useConfirmSpend(); const creator = user.accountMode === 'CREATOR';
   const qc = useQueryClient(); const [cat, setCat] = useState('all'); const [open, setOpen] = useState(null); const [hasMore, setHasMore] = useState(false);
   const convQ = useQuery({ queryKey: keys.conversations(cat), queryFn: ({ signal }) => api(`/messages/conversations?category=${cat}`, { signal }), staleTime: 15_000 }); const list = convQ.data?.items;
   const labelsQ = useQuery({ queryKey: ['labels'], queryFn: get('/messages/labels'), staleTime: 60_000 }); const labels = labelsQ.data?.items || []; const [labelMenu, setLabelMenu] = useState(false); const [newLabel, setNewLabel] = useState(''); const [subsOnly, setSubsOnly] = useState(null);
@@ -228,7 +229,7 @@ export default function Messages() {
         <div className="relative flex-1 min-h-0"><div ref={listRef} onScroll={onListScroll} className="h-full overflow-y-auto overflow-x-hidden py-4 space-y-2">
           {hasMore && <button className="btn-ghost !py-1.5 mx-auto block" onClick={loadEarlier}>Load earlier messages</button>}
           {msgs.length === 0 && <Empty>Say hi 👋</Empty>}
-          {msgs.map((m, i) => { const mine = m.senderId === user.id; const nx = msgs[i + 1]; const tail = !nx || nx.senderId !== m.senderId || nx.deletedForAll; const isNew = knownRef.current && !knownRef.current.has(m._id) && !(m.clientId && knownRef.current.has(m.clientId)) && new Date(m.createdAt).getTime() >= newestRef.current; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
+          {msgs.map((m, i) => { const mine = m.senderId === user.id; const nx = msgs[i + 1]; const tail = true; /* every bubble has its tail */ void nx; const isNew = knownRef.current && !knownRef.current.has(m._id) && !(m.clientId && knownRef.current.has(m.clientId)) && new Date(m.createdAt).getTime() >= newestRef.current; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
             if (m.deletedForAll) return <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><p className="text-xs italic text-muted border border-line rounded-card px-3 py-2 flex items-center gap-1"><Ban size={12} />{mine ? 'You deleted this message' : 'This message was deleted'}</p></div>;
             return <SwipeRow key={m._id} disabled={m.pending || m.failed} onReply={() => setReply(m)} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
               <div data-mid={m._id} className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${tail ? (mine ? 'bub-tail-me' : 'bub-tail-them') : ''} ${isNew ? (mine ? 'bubble-pop-me' : 'bubble-pop-them') : ''} ${flash === m._id ? 'msg-flash' : ''} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
@@ -246,7 +247,7 @@ export default function Messages() {
                   {canEdit(m) && <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => startEdit(m)}><Pencil size={14} />Edit</button>}
                   <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => delMsg(m, 'me')}><Trash2 size={14} />Delete for me</button>
                   {mine && <button className="block w-full text-left px-3 py-2 hover:bg-line text-bad flex items-center gap-2" onClick={() => delMsg(m, 'everyone')}><Trash2 size={14} />Delete for everyone</button>}</div>}</span></SwipeRow>; })}
-          {typing && <div className="bg-card2 w-14 px-3 py-2 rounded-card text-muted tracking-widest animate-pulse">•••</div>}<div ref={bottom} /></div>
+          {typing && <div className="relative bub-tail-them bg-card2 w-16 px-4 py-2 text-muted tracking-widest animate-pulse">•••</div>}<div ref={bottom} /></div>
           {showDown && <button onClick={toBottom} aria-label="Scroll to the latest message" className="absolute bottom-3 right-2 w-10 h-10 rounded-full bg-card2 border border-line shadow-lg grid place-items-center text-ink hover:bg-line animate-pop"><ArrowDown size={18} /></button>}</div>
         <Err>{err}</Err>
         {editing && <div className="text-xs bg-card2 rounded-t-btn px-3 py-2 flex justify-between items-center"><span className="flex items-center gap-1.5 text-violet-light font-semibold"><Pencil size={12} />Editing message</span><button onClick={() => { setEditing(null); setText(''); }} aria-label="Cancel edit">×</button></div>}
@@ -265,6 +266,7 @@ export default function Messages() {
     </div></div>, document.body); }
 
   return <div className="space-y-4"><div className="flex justify-between items-center relative"><h1 className="text-3xl font-bold">Messages</h1><button className="btn-ghost !px-3" onClick={() => setTopMenu(!topMenu)} aria-label="Message options" aria-expanded={topMenu}><MoreVertical size={18} /></button>{topMenu && <><div className="fixed inset-0 z-10" onClick={() => setTopMenu(false)} /><div className="absolute right-0 top-full mt-1 z-20 w-52 bg-card2 border border-line rounded-btn text-sm overflow-hidden animate-fade"><button className="block w-full text-left px-3 py-2.5 hover:bg-line text-bad flex items-center gap-2" onClick={deleteAll}><Trash2 size={14} />Delete all chats</button></div></>}</div>
+    {pushSupported() && !user.prefs?.push && !pushHidden && Notification.permission !== 'denied' && <div className="card !p-3 flex items-center gap-3 text-sm animate-rise"><span className="text-xl" aria-hidden>🔔</span><span className="flex-1">Get new messages in your phone’s notification bar, even when Privy is closed.</span><button className="btn-primary !py-1.5" onClick={async () => { try { await enablePush(); toast('Message alerts are on'); refresh(); } catch (x) { toast(x.message); } }}>Turn on</button><button className="text-muted text-lg leading-none px-1" aria-label="Not now" onClick={() => { setPushHidden(true); try { localStorage.setItem('pushPromptHidden', '1'); } catch { /* private mode */ } }}>×</button></div>}
     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1" role="tablist">{baseCats(creator).map(([k, l]) => <button key={k} role="tab" aria-selected={cat === k} onClick={() => setCat(k)} className={`chip ${cat === k ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{l}</button>)}
       {labels.map((l) => <span key={l._id} className={`chip flex items-center gap-1 ${cat === `label:${l._id}` ? 'bg-pink/80 border-pink' : 'border-line text-ink2'}`}><button role="tab" aria-selected={cat === `label:${l._id}`} onClick={() => setCat(`label:${l._id}`)}>{l.name}</button><button aria-label={`Delete category ${l.name}`} className="text-muted hover:text-bad leading-none" onClick={() => delLabel(l)}>×</button></span>)}
       <span className="chip border-dashed border-line flex items-center gap-1"><input className="bg-transparent w-24 text-sm outline-none placeholder:text-muted" placeholder="+ New category" value={newLabel} maxLength={24} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addLabel()} aria-label="New category name" /></span></div><Err>{err}</Err>
