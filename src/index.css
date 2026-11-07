@@ -359,13 +359,13 @@ body { transition: background-color .25s ease, color .25s ease; }
 .unlock-glow { animation: sub-glow 2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .btn-subscribe, .btn-subscribe::after, .unlock-glow, .react-float, .react-chip-pop { animation: none; } }
 
-/* ---------- Chat bubbles: a tail on the last bubble of each run, and a pop-in for a message that has just arrived ---------- */
-.bub-tail-me, .bub-tail-them { --tail: 16px; }
-.bub-tail-me { border-bottom-right-radius: 4px; }
-.bub-tail-them { border-bottom-left-radius: 4px; }
-.bub-tail-me::after, .bub-tail-them::after { content: ""; position: absolute; bottom: 0; width: 11px; height: 15px; background: inherit; pointer-events: none; }
-.bub-tail-me::after { right: -8px; clip-path: path('M0 0 L0 15 L11 15 C 5 14, 1 8, 0 0 Z'); }
-.bub-tail-them::after { left: -8px; clip-path: path('M11 0 L11 15 L0 15 C 6 14, 10 8, 11 0 Z'); }
+/* ---------- Chat bubbles: iMessage style. A roomy capsule with a sharp, curling tail at the bottom (right for your messages, left for theirs) ---------- */
+.bub-tail-me, .bub-tail-them { padding-inline: 1rem !important; }
+.bub-tail-me { border-radius: 22px 22px 4px 22px; }
+.bub-tail-them { border-radius: 22px 22px 22px 4px; }
+.bub-tail-me::after, .bub-tail-them::after { content: ""; position: absolute; bottom: 0; width: 18px; height: 20px; background: inherit; pointer-events: none; }
+.bub-tail-me::after { right: -12px; clip-path: path('M0 0 L6 0 C6 10 9 16 18 20 C10 21 4 19 0 15 Z'); }
+.bub-tail-them::after { left: -12px; clip-path: path('M18 0 L12 0 C12 10 9 16 0 20 C8 21 14 19 18 15 Z'); }
 .bubble-pop-me { transform-origin: bottom right; animation: bubble-pop .34s cubic-bezier(.2, 1.35, .4, 1) both; }
 .bubble-pop-them { transform-origin: bottom left; animation: bubble-pop .34s cubic-bezier(.2, 1.35, .4, 1) both; }
 @keyframes bubble-pop { 0% { transform: scale(.55) translateY(10px); opacity: 0; } 70% { opacity: 1; } 100% { transform: none; opacity: 1; } }
