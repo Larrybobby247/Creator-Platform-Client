@@ -4,7 +4,8 @@ self.addEventListener('push', (e) => {
   const d = e.data ? e.data.json() : {};
   e.waitUntil((async () => {
     const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (d.type === 'MESSAGE' && wins.some((w) => w.visibilityState === 'visible' && w.focused)) return;
+    // Only skip the banner when the person is looking at the Messages screen right now; anywhere else in the app they still get it.
+    if (d.type === 'MESSAGE' && wins.some((w) => w.visibilityState === 'visible' && w.focused && new URL(w.url).pathname.startsWith('/messages'))) return;
     await self.registration.showNotification(d.title || 'Privy', { body: d.body, data: { link: d.link || '/' }, icon: '/favicon.svg', badge: '/favicon.svg', tag: d.tag || undefined, renotify: !!d.tag });
   })());
 });
