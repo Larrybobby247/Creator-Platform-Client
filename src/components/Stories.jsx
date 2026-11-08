@@ -10,22 +10,27 @@ import { shrinkImage } from '../lib/image.js';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 
+import VideoTrimmer from './VideoTrimmer.jsx';
+import { videoDuration, fmtTime } from '../lib/video.js';
 import { FREE_BG as BG, PRO_FLAT_KEYS, PRO_DOODLE_KEYS, isProBg, statusBg } from '../lib/statusBg.js';
 const Ring = ({ unseen, children }) => <span className={`inline-block p-[2px] rounded-full ${unseen ? 'bg-gradient-to-tr from-violet to-pink' : 'bg-line'}`}><span className="block p-[2px] bg-bg rounded-full">{children}</span></span>;
 
 export function AddStoryModal({ open, onClose }) {
   const qc = useQueryClient(); const { user } = useAuth(); const { toast } = useLive(); const fileRef = useRef(); const isPro = user?.accountMode === 'CREATOR' && user?.creatorPlan === 'PRO';
   const [file, setFile] = useState(null); const [url, setUrl] = useState(null); const [text, setText] = useState(''); const [bg, setBg] = useState('violet'); const [pct, setPct] = useState(0); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  useEffect(() => { if (!open) { setFile(null); setUrl(null); setText(''); setPct(0); setErr(''); setBusy(false); } }, [open]);
+  const [dur, setDur] = useState(0); const [trim, setTrim] = useState(null); const [trimming, setTrimming] = useState(false);
+  const pro = useQuery({ queryKey: ['pro'], queryFn: get('/pro'), staleTime: 5 * 60_000, enabled: open }); const maxSec = pro.data?.limits[user?.creatorPlan === 'PRO' && user?.accountMode === 'CREATOR' ? 'PRO' : 'DEFAULT']?.videoSec;
+  useEffect(() => { if (!open) { setFile(null); setUrl(null); setText(''); setPct(0); setErr(''); setBusy(false); setDur(0); setTrim(null); } }, [open]);
+  useEffect(() => { setDur(0); setTrim(null); if (url && file?.type.startsWith('video/')) videoDuration(url).then(setDur); }, [url]);
   const pick = async (e) => { const f = e.target.files[0]; if (!f) return; const out = f.type.startsWith('image/') ? await shrinkImage(f, 1280) : f; setFile(out); setUrl(URL.createObjectURL(out)); };
   const post = async () => { setBusy(true); setErr(''); setPct(0);
-    try { const fd = new FormData(); if (file) fd.append('file', file); if (text.trim()) fd.append('text', text.trim()); fd.append('bg', bg); await uploadWithProgress('/stories', fd, setPct);
+    try { const fd = new FormData(); if (trim) { fd.append('trimStart', trim.start); fd.append('trimEnd', trim.end); } if (file) fd.append('file', file); if (text.trim()) fd.append('text', text.trim()); fd.append('bg', bg); await uploadWithProgress('/stories', fd, setPct);
       toast('Status posted. It disappears in 24 hours.'); qc.invalidateQueries({ queryKey: ['stories'] }); onClose(); }
     catch (x) { setErr(x.message); } finally { setBusy(false); } };
   const video = file?.type.startsWith('video/');
-  return <Modal open={open} onClose={() => !busy && onClose()} title="Add to your status">
+  return <><Modal open={open} onClose={() => !busy && onClose()} title="Add to your status">
     <div className="space-y-3">
-      {url ? <div className="relative rounded-card overflow-hidden bg-black">{video ? <video src={url} controls className="w-full max-h-72" /> : <img src={url} alt="Status preview" className="w-full max-h-72 object-contain" />}<button className="absolute top-2 right-2 bg-bg/80 rounded-full p-1" aria-label="Remove" onClick={() => { setFile(null); setUrl(null); }}><X size={16} /></button></div>
+      {url ? <div className="relative rounded-card overflow-hidden bg-black">{video ? <video src={url} controls className="w-full max-h-72" /> : <img src={url} alt="Status preview" className="w-full max-h-72 object-contain" />}<button className="absolute top-2 right-2 bg-bg/80 rounded-full p-1" aria-label="Remove" onClick={() => { setFile(null); setUrl(null); }}><X size={16} /></button>{video && dur > 0 && <button type="button" onClick={() => setTrimming(true)} className={`absolute bottom-2 left-2 text-[11px] rounded-full px-2.5 py-1.5 ${maxSec && (trim ? trim.end - trim.start : dur) > maxSec + 0.25 ? 'bg-bad text-white' : 'bg-bg/85'}`}>✂ {trim ? `Trimmed · ${fmtTime(trim.end - trim.start)}` : maxSec && dur > maxSec + 0.25 ? `Too long · trim to ${maxSec}s` : `Trim · ${fmtTime(dur)}`}</button>}</div>
         : <div className={`rounded-card ${statusBg(bg).className} p-6 min-h-[160px] grid place-items-center`} style={statusBg(bg).style}><textarea maxLength={220} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a status…" aria-label="Status text" className="w-full bg-transparent text-center text-xl font-semibold placeholder:text-white/60 resize-none outline-none" rows={3} /></div>}
       {!url && <div className="space-y-2"><div className="flex gap-2 items-center flex-wrap">{Object.keys(BG).map((k) => <button key={k} aria-label={`Colour ${k}`} onClick={() => setBg(k)} className={`w-7 h-7 rounded-full bg-gradient-to-br ${BG[k]} ${bg === k ? 'ring-2 ring-white' : ''}`} />)}<span className="text-xs text-muted ml-auto">{text.length}/220</span></div>
         <div className="space-y-1.5"><p className="text-xs font-semibold flex items-center gap-1.5"><span className="rounded-full bg-gradient-to-r from-violet to-pink text-white px-1.5 py-[1px] text-[9px]">PRO</span>Privy Pro colours{!isPro && <span className="text-muted font-normal">· for Pro creators</span>}</p>
@@ -37,7 +42,7 @@ export function AddStoryModal({ open, onClose }) {
       {busy && <div className="h-2 rounded-full bg-card2 overflow-hidden" role="progressbar" aria-valuenow={pct}><div className="h-full bg-gradient-to-r from-violet to-pink transition-all" style={{ width: `${pct}%` }} /></div>}
       <Err>{err}</Err>
       <button className="btn-primary w-full" disabled={busy || (!file && !text.trim())} onClick={post}>{busy ? (pct < 100 ? `Uploading… ${pct}%` : 'Finishing…') : 'Share status'}</button>
-    </div></Modal>;
+    </div></Modal>{trimming && url && dur > 0 && <VideoTrimmer url={url} duration={dur} initial={trim} maxSec={maxSec} onClose={() => setTrimming(false)} onSave={(t) => { setTrim(t); setTrimming(false); }} />}</>;
 }
 
 // A thin progress segment. Image: waits (shimmers) until the picture has fully loaded. Video: shows how much has LOADED (lighter) ahead of how much has PLAYED, and keeps following the download.
