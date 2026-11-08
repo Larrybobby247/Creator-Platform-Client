@@ -19,7 +19,7 @@ import { useConfirm } from '../components/ConfirmDialog.jsx';
 const Stars = ({ n }) => <span className="text-warn" aria-label={`${n} stars`}>{'★'.repeat(n)}<span className="text-line">{'★'.repeat(5 - n)}</span></span>;
 const DM_NOTE = { PAID: (c) => `Messaging this creator costs ${c.dmPolicy.pricePoints} pts (free for subscribers).`, SUBSCRIBERS: () => 'Only subscribers can message this creator.' };
 
-function RequestModal({ creator, onClose }) {
+export function RequestModal({ creator, onClose }) {
   const { toast } = useLive(); const ask = useConfirmSpend(); const rs = creator.requestSettings || {}; const min = rs.minPricePoints || 1;
   const [d, setD] = useState(''); const [p, setP] = useState(min); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const go = async () => { if (!(await ask({ title: 'Send this request?', detail: `Points are held until ${creator.displayName || creator.username} rejects it (refund) or you confirm delivery.`, points: Number(p), confirmLabel: 'Send request' }))) return; setBusy(true); setErr('');
@@ -28,7 +28,7 @@ function RequestModal({ creator, onClose }) {
     <textarea className="input min-h-[100px]" placeholder="Describe what you want (min 10 characters)" value={d} onChange={(e) => setD(e.target.value)} /><label className="block text-sm">Your offer (points)<input type="number" min={min} className="input mt-1" value={p} onChange={(e) => setP(e.target.value)} /></label><Err>{err}</Err>
     <button className="btn-primary w-full" disabled={busy || d.length < 10 || Number(p) < min} onClick={go}>{busy ? 'Sending…' : `Continue · ${p} pts`}</button></div></Modal>;
 }
-function MeetupModal({ creator, onClose }) {
+export function MeetupModal({ creator, onClose }) {
   const { toast } = useLive(); const ask = useConfirmSpend(); const m = creator.meetup; const [at, setAt] = useState(''); const [err, setErr] = useState(''); const [key] = useState(uid()); const [busy, setBusy] = useState(false); const total = (m.pricePoints || 0) + (m.transportPoints || 0);
   const go = async () => { if (!(await ask({ title: 'Confirm Innercircle payment', detail: `Innercircle fee ${m.pricePoints} pts + invitation fee ${m.transportPoints} pts. The fee is held until the booking is completed.`, points: total, confirmLabel: 'Pay and request' }))) return; setBusy(true); setErr('');
     try { await api('/meetups', { method: 'POST', body: { creatorId: creator._id, slotAt: new Date(at).toISOString(), idempotencyKey: key } }); toast('Innercircle requested'); window.dispatchEvent(new Event('wallet:changed')); onClose(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };

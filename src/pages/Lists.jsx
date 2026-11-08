@@ -1,4 +1,5 @@
 import { InnercircleGuide } from '../components/InnercircleInfo.jsx';
+import RateModal from '../components/RateModal.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -46,13 +47,16 @@ const NEXT = { PENDING: 'Waiting for creator', ACCEPTED: 'Accepted', DELIVERED: 
 export function Requests() {
   const { toast } = useLive(); const [as, setAs] = useState('user'); const [items, setItems] = useState(null);
   const load = () => api(`/requests?as=${as}`).then((d) => setItems(d.items)); useEffect(() => { setItems(null); load(); }, [as]);
-  const act = async (id, a) => { try { await api(`/requests/${id}/${a}`, { method: 'POST' }); load(); } catch (e) { toast(e.message); } };
+  const [rateFor, setRateFor] = useState(null);
+  const act = async (id, a) => { try { await api(`/requests/${id}/${a}`, { method: 'POST' }); const r = items?.find((x) => x._id === id); await load(); if (a === 'complete' && r) setRateFor(r); /* delivery confirmed: ask for a rating right away */ } catch (e) { toast(e.message); } };
   return <div className="space-y-4"><h1 className="text-3xl font-bold">Special requests</h1><div className="flex gap-2">{['user', 'creator'].map((k) => <button key={k} onClick={() => setAs(k)} className={`chip ${as === k ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{k === 'user' ? 'Sent by me' : 'Received'}</button>)}</div>
     {!items ? <Skeleton /> : items.length === 0 ? <Empty>No requests.</Empty> : items.map((r) => <div key={r._id} className="card space-y-2 text-sm"><div className="flex justify-between"><b>{as === 'user' ? r.creatorId?.username : r.userId?.username}</b><span>{r.offerPoints} pts</span></div><p className="text-ink2">{r.description}</p><p className="text-xs text-violet-light">{NEXT[r.status]}</p>
       <div className="flex gap-2 flex-wrap">{as === 'creator' && r.status === 'PENDING' && <><button className="btn-primary !py-2" onClick={() => act(r._id, 'accept')}>Accept</button><button className="btn-ghost !py-2" onClick={() => act(r._id, 'reject')}>Reject</button></>}
         {as === 'creator' && r.status === 'ACCEPTED' && <button className="btn-primary !py-2" onClick={() => act(r._id, 'deliver')}>Mark delivered</button>}
         {as === 'user' && r.status === 'DELIVERED' && <button className="btn-primary !py-2" onClick={() => act(r._id, 'complete')}>Confirm delivery</button>}
-        {as === 'user' && r.status === 'PENDING' && <button className="btn-ghost !py-2" onClick={() => act(r._id, 'cancel')}>Cancel</button>}</div></div>)}</div>;
+        {as === 'user' && r.status === 'COMPLETED' && (r.rated ? <span className="text-xs text-ok self-center">✓ You rated this</span> : <button className="btn-primary !py-2" onClick={() => setRateFor(r)}>★ Rate creator</button>)}
+        {as === 'user' && r.status === 'PENDING' && <button className="btn-ghost !py-2" onClick={() => act(r._id, 'cancel')}>Cancel</button>}</div></div>)}
+    {rateFor && <RateModal creator={rateFor.creatorId} qualifyingId={rateFor._id} onClose={() => setRateFor(null)} onDone={load} />}</div>;
 }
 
 const STEPS = ['PAID_AND_RESERVED', 'CREATOR_ACCEPTED', 'MEETUP_PENDING_USER_ACCEPTANCE', 'USER_ACCEPTED', 'COMPLETED', 'EARNINGS_RELEASED'];

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, X, Lock, Play } from 'lucide-react';
+import { ImagePlus, X, Lock, Play, Scissors } from 'lucide-react';
+import VideoTrimmer from '../components/VideoTrimmer.jsx';
+import { videoDuration, fmtTime } from '../lib/video.js';
 import { api, uid } from '../lib/api';
 import { get } from '../lib/query.js';
 import { uploadWithProgress } from '../lib/upload.js';
@@ -24,7 +26,9 @@ export default function Create() {
   const [content, setContent] = useState(''); const [exclusiveText, setExclusiveText] = useState(''); const [items, setItems] = useState([]); const [picked, setPicked] = useState(null); // picked = files waiting for the free/paid prompt
   const [err, setErr] = useState(''); const [pct, setPct] = useState(0); const [stage, setStage] = useState(''); const busy = !!stage;
   useEffect(() => () => items.forEach((i) => URL.revokeObjectURL(i.url)), []);
-  const videos = items.filter((i) => i.type === 'VIDEO').length;
+  const videos = items.filter((i) => i.type === 'VIDEO').length; const [trimFor, setTrimFor] = useState(null);
+  // find out how long each chosen video is, so it can be trimmed
+  useEffect(() => { items.forEach((it) => { if (it.type === 'VIDEO' && it.dur === undefined && !it.probing) { setItem(it.id, { probing: true }); videoDuration(it.url).then((d) => setItem(it.id, { dur: d || 0, probing: false })); } }); }, [items.length]);
 
   const pick = async (e) => {
     const files = [...e.target.files]; e.target.value = ''; if (!files.length) return; setErr('');
@@ -44,7 +48,7 @@ export default function Create() {
     if (items.some((i) => i.access === 'EXCLUSIVE' && !(Number(i.price) >= 1))) return setErr('Set a price (at least 1 point) for every exclusive item.');
     try {
       const media = []; let n = 0;
-      for (const it of items) { n++; setStage(`Uploading ${n} of ${items.length}`); setPct(0); const fd = new FormData(); fd.append('file', it.file); const up = await uploadWithProgress('/media/upload', fd, setPct); media.push({ mediaId: up.id, access: it.access, pricePoints: it.access === 'EXCLUSIVE' ? Number(it.price) : 0 }); }
+      for (const it of items) { n++; setStage(`Uploading ${n} of ${items.length}`); setPct(0); const fd = new FormData(); if (it.trim) { fd.append('trimStart', it.trim.start); fd.append('trimEnd', it.trim.end); } fd.append('file', it.file); const up = await uploadWithProgress('/media/upload', fd, setPct); media.push({ mediaId: up.id, access: it.access, pricePoints: it.access === 'EXCLUSIVE' ? Number(it.price) : 0 }); }
       setStage('Publishing'); await api('/media/posts', { method: 'POST', body: { content, draft, media: media.length ? media : undefined, exclusiveText: creator && gated && exclusiveText ? exclusiveText : undefined } });
       toast(draft ? 'Saved as draft' : 'Published!'); qc.invalidateQueries({ queryKey: ['feed'] }); qc.invalidateQueries({ queryKey: ['insights'] }); nav(draft ? '/insights' : '/home');
     } catch (x) { setErr(x.message); } finally { setStage(''); } };
@@ -54,7 +58,8 @@ export default function Create() {
     <input ref={fileRef} type="file" accept="image/*,video/*" multiple hidden onChange={pick} />
     {items.length > 0 && <div className={`grid gap-1.5 ${GRID[items.length]}`}>{items.map((it, idx) => <div key={it.id} className={`relative rounded-card overflow-hidden bg-black animate-pop ${items.length === 3 && idx === 2 ? 'col-span-2' : ''}`}>
       <div className={items.length === 1 ? 'max-h-72' : 'h-40'}>{it.type === 'VIDEO' ? <video src={`${it.url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover" /> : <img src={it.url} alt="Selected" className="w-full h-full object-cover" />}</div>
-      {it.type === 'VIDEO' && <span className="absolute top-2 left-2 text-[11px] bg-bg/80 rounded-full px-2 py-1 flex items-center gap-1"><Play size={10} />Video</span>}
+      {it.type === 'VIDEO' && <span className="absolute top-2 left-2 text-[11px] bg-bg/80 rounded-full px-2 py-1 flex items-center gap-1"><Play size={10} />Video{it.dur ? ` · ${fmtTime(it.trim ? it.trim.end - it.trim.start : it.dur)}` : ''}</span>}
+      {it.type === 'VIDEO' && it.dur > 0 && !busy && <button type="button" onClick={() => setTrimFor(it.id)} className={`absolute bottom-2 left-2 text-[11px] rounded-full px-2.5 py-1.5 flex items-center gap-1 ${lim?.videoSec && (it.trim ? it.trim.end - it.trim.start : it.dur) > lim.videoSec + 0.25 ? 'bg-bad text-white' : 'bg-bg/85'}`}><Scissors size={11} />{it.trim ? 'Trimmed · edit' : lim?.videoSec && it.dur > lim.videoSec + 0.25 ? `Too long · trim to ${lim.videoSec}s` : 'Trim'}</button>}
       {!busy && <button type="button" onClick={() => remove(it.id)} className="absolute top-2 right-2 bg-bg/80 rounded-full p-1.5" aria-label="Remove file"><X size={16} /></button>}
       {creator && <div className="p-2 bg-card2 space-y-1.5"><div className="flex gap-1" role="radiogroup" aria-label="Who can view this item">{ACCESS.map(([k, l]) => <button type="button" key={k} disabled={busy} role="radio" aria-checked={it.access === k} onClick={() => setItem(it.id, { access: k, price: k === 'EXCLUSIVE' ? (it.price || 5) : 0 })} className={`flex-1 text-[11px] py-1.5 rounded-full border ${it.access === k ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{l}</button>)}</div>
         {it.access === 'EXCLUSIVE' && <label className="flex items-center gap-2 text-xs">Price<input type="number" min={1} disabled={busy} className="input !py-1 !px-2 w-20" value={it.price} onChange={(e) => setItem(it.id, { price: e.target.value })} />pts</label>}</div>}
@@ -68,6 +73,7 @@ export default function Create() {
     {busy && <div className="space-y-1 animate-fade"><div className="h-2.5 rounded-full bg-card2 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-gradient-to-r from-violet to-pink transition-all duration-200" style={{ width: stage === 'Publishing' ? '100%' : `${pct}%` }} /></div><p className="text-xs text-ink2 text-center">{stage === 'Publishing' ? 'Publishing…' : `${stage}… ${pct}%`}</p></div>}
     <Err>{err}</Err>
     <div className="flex gap-2"><button type="button" className="btn-ghost flex-1" disabled={busy} onClick={submit(true)}>Save draft</button><button className="btn-primary flex-1" disabled={busy || (!content.trim() && !items.length)}>{busy ? 'Working…' : 'Publish'}</button></div>
+    {trimFor && (() => { const it = items.find((x) => x.id === trimFor); return it ? <VideoTrimmer url={it.url} duration={it.dur} initial={it.trim} maxSec={lim?.videoSec} onClose={() => setTrimFor(null)} onSave={(t) => { setItem(it.id, { trim: t || undefined }); setTrimFor(null); }} /> : null; })()}
     {picked && <PricePrompt title={`Add ${picked.length > 1 ? `${picked.length} files` : picked[0].type === 'VIDEO' ? 'video' : 'photo'}: free or paid?`} noun={picked.length > 1 ? 'each item' : 'this item'} allowSubscribers defaultPrice={user.services?.paidPhotos?.pricePoints || 5}
       onClose={() => { picked.forEach((p) => URL.revokeObjectURL(p.url)); setPicked(null); }} onDone={({ access, price }) => { setItems((x) => [...x, ...picked.map((p) => ({ ...p, access, price }))]); setPicked(null); }} />}
   </form>;
