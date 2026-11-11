@@ -377,3 +377,14 @@ body { transition: background-color .25s ease, color .25s ease; }
 .wordmark { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-pink) 40%, transparent)); }
 :root[data-theme="daylight"] .wordmark { filter: none; }
 @media (prefers-reduced-motion: reduce) { .bubble-pop-me, .bubble-pop-them, .msg-flash { animation: none; } }
+
+/* ---------- Reels (Explore) ---------- */
+.reels-shell { --reels-bottom: calc(3.95rem + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { .reels-shell { --reels-bottom: 0px; } }
+.reel-heart { position: absolute; width: 96px; height: 96px; pointer-events: none; z-index: 15; animation: reel-heart .9s cubic-bezier(.2, .9, .3, 1) both; }
+.reel-pop { animation: reel-pop .6s ease-out both; }
+.reel-like { animation: reel-like .45s cubic-bezier(.2, 1.8, .4, 1) both; }
+@keyframes reel-heart { 0% { transform: scale(.2) rotate(var(--rot)); opacity: 0; } 18% { transform: scale(1.25) rotate(var(--rot)); opacity: 1; } 35% { transform: scale(1) rotate(var(--rot)); } 100% { transform: translateY(-90px) scale(1.1) rotate(var(--rot)); opacity: 0; } }
+@keyframes reel-pop { 0% { transform: scale(.6); opacity: 0; } 25% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+@keyframes reel-like { 0% { transform: scale(.3); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .reel-heart, .reel-pop, .reel-like { animation: none; } }

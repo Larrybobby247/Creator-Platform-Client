@@ -18,6 +18,7 @@ const Reset = lazy(() => import('./pages/Reset.jsx').then((m) => ({ default: m.R
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail.jsx'));
 const Home = lazy(() => import('./pages/Home.jsx'));
 const Explore = lazy(() => import('./pages/Explore.jsx'));
+const SearchPage = lazy(() => import('./pages/SearchPage.jsx'));
 const Create = lazy(() => import('./pages/Create.jsx'));
 const Messages = lazy(() => import('./pages/Messages.jsx'));
 const Wallet = lazy(() => import('./pages/Wallet.jsx'));
@@ -46,7 +47,7 @@ export default function App() {
     <Route path="/about" element={<About />} /><Route path="/contact" element={<Contact />} /><Route path="/terms" element={<Terms />} /><Route path="/privacy" element={<Privacy />} />
     <Route path="/login" element={user ? <Navigate to={after} replace /> : <AuthPage mode="login" />} /><Route path="/signup" element={user ? <Navigate to={after} replace /> : <AuthPage mode="signup" />} />
     <Route path="/verify-email" element={<VerifyEmail />} /><Route path="/forgot" element={<Forgot />} /><Route path="/reset" element={<Reset />} />
-    <Route path="/home" element={app(<Home />)} /><Route path="/explore" element={app(<Explore />)} /><Route path="/create" element={app(<Create />)} />
+    <Route path="/home" element={app(<Home />)} /><Route path="/explore" element={app(<Explore />)} /><Route path="/search" element={app(<SearchPage />)} /><Route path="/create" element={app(<Create />)} />
     <Route path="/messages" element={app(<Messages />)} /><Route path="/wallet" element={app(<Wallet />)} /><Route path="/u/:username" element={user ? app(<Profile />) : <PublicProfile />} />
     <Route path="/studio" element={app(<Studio />)} /><Route path="/topic/:tag" element={app(<Topic />)} /><Route path="/insights" element={app(<Insights />)} /><Route path="/notifications" element={app(<Notifications />)} />
     <Route path="/settings" element={app(<Settings />)} /><Route path="/communities" element={app(<Communities />)} /><Route path="/communities/:id" element={user ? app(<CommunityPage />) : <PublicCommunity />} />
