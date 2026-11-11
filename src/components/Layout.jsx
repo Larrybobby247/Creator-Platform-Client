@@ -25,12 +25,12 @@ export default function Layout({ children }) {
   const bottom = [['/home', 'Home', Home], ['/explore', 'Explore', Compass], ['/create', 'Create', PlusSquare], ['/messages', 'Messages', MessageCircle, msgUnread], [`/u/${user.username}`, 'Profile', User]];
   return <div className="min-h-screen">
     <aside className="hidden lg:flex fixed inset-y-0 left-0 w-60 flex-col gap-1 p-4 border-r border-divider bg-bg overflow-y-auto">
-      <Link to="/home" className="flex items-center gap-2 text-xl font-bold px-3 py-4 truncate">{platform.logoUrl && <img src={platform.logoUrl} alt="" width="28" height="28" className="rounded-md" />}<Brand name={platform.name} height={46} /></Link>
+      <Link to="/home" className="flex items-center gap-2 text-xl font-bold px-3 py-4 truncate">{platform.logoUrl && <img src={platform.logoUrl} alt="" width="28" height="28" className="rounded-md" />}<Brand name={platform.name} height={54} /></Link>
       {side.map(([to, label, Icon, n]) => <NavLink key={to} to={to} className={cls}><Icon size={20} />{label}<Dot n={n} /></NavLink>)}
       <Link to="/create" className="btn-primary mt-4">Create</Link>
     </aside>
     <header className="sticky top-0 z-20 flex items-center gap-2 p-3 bg-bg/90 backdrop-blur border-b border-divider lg:ml-60">
-      <Link to="/home" className="lg:hidden flex items-center gap-2 font-bold text-lg truncate mr-auto min-w-0">{platform.logoUrl && <img src={platform.logoUrl} alt="" width="24" height="24" className="rounded-md" />}<Brand name={platform.name} height={38} /></Link><span className="hidden lg:block mr-auto" />
+      <Link to="/home" className="lg:hidden flex items-center gap-2 font-bold text-lg truncate mr-auto min-w-0">{platform.logoUrl && <img src={platform.logoUrl} alt="" width="24" height="24" className="rounded-md" />}<Brand name={platform.name} height={44} /></Link><span className="hidden lg:block mr-auto" />
       <Link to="/notifications" aria-label="Notifications" className="relative grid place-items-center w-10 h-10 rounded-full bg-card border border-line"><Bell size={18} />{notifUnread > 0 && <span className="absolute -top-1 -right-1 bg-pink text-[10px] font-bold rounded-full min-w-[18px] h-[18px] grid place-items-center">{notifUnread}</span>}</Link>
       <PointChip /></header>
     <main key={loc.pathname} className="lg:ml-60 mx-auto max-w-3xl p-4 pb-28 lg:pb-8 animate-page">{children}</main>
