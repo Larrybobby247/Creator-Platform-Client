@@ -1,5 +1,5 @@
 export const API_BASE_URL = import.meta.env.PROD
-  ? "https://creator-server-hdsk.onrender.com"
+  ? (import.meta.env.VITE_API_BASE_URL || "https://api.pryviroom.com")
   : "";
 
 // Public frontend API utility
