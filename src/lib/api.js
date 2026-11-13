@@ -48,6 +48,12 @@ export async function api(
 export const fmtPoints = (n) =>
   `${Number(n || 0).toLocaleString()} pts`;
 
+// Format US dollars (1 point = $1 by default; the real rate comes from the server as usdPerPoint)
+export const fmtUsd = (n) => {
+  const v = Number(n || 0);
+  return `$${v.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 })}`;
+};
+
 // Format Nigerian naira
 export const fmtNaira = (n) =>
   `₦${Number(n || 0).toLocaleString("en-NG")}`;
