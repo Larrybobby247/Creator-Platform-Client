@@ -24,6 +24,8 @@ const Messages = lazy(() => import('./pages/Messages.jsx'));
 const Wallet = lazy(() => import('./pages/Wallet.jsx'));
 const Profile = lazy(() => import('./pages/Profile.jsx'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile.jsx'));
+const ReelLink = lazy(() => import('./pages/ReelLink.jsx'));
+const CreatorInfo = lazy(() => import('./pages/CreatorInfo.jsx'));
 const PublicCommunity = lazy(() => import('./pages/PublicCommunity.jsx'));
 const Studio = lazy(() => import('./pages/Studio.jsx'));
 const Topic = lazy(() => import('./pages/Topic.jsx'));
@@ -44,7 +46,7 @@ export default function App() {
   const app = (el) => user ? <Layout><Suspense fallback={<Fallback />}>{el}</Suspense></Layout> : <Navigate to="/login" />;
   return <Suspense fallback={<Fallback />}><Routes>
     <Route path="/" element={user ? <Navigate to="/home" /> : <Landing />} />
-    <Route path="/about" element={<About />} /><Route path="/contact" element={<Contact />} /><Route path="/terms" element={<Terms />} /><Route path="/privacy" element={<Privacy />} />
+    <Route path="/reel/:id" element={<ReelLink />} /><Route path="/creators" element={<CreatorInfo />} /><Route path="/about" element={<About />} /><Route path="/contact" element={<Contact />} /><Route path="/terms" element={<Terms />} /><Route path="/privacy" element={<Privacy />} />
     <Route path="/login" element={user ? <Navigate to={after} replace /> : <AuthPage mode="login" />} /><Route path="/signup" element={user ? <Navigate to={after} replace /> : <AuthPage mode="signup" />} />
     <Route path="/verify-email" element={<VerifyEmail />} /><Route path="/forgot" element={<Forgot />} /><Route path="/reset" element={<Reset />} />
     <Route path="/home" element={app(<Home />)} /><Route path="/explore" element={app(<Explore />)} /><Route path="/search" element={app(<SearchPage />)} /><Route path="/create" element={app(<Create />)} />

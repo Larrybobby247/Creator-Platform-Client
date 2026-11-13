@@ -388,3 +388,14 @@ body { transition: background-color .25s ease, color .25s ease; }
 @keyframes reel-pop { 0% { transform: scale(.6); opacity: 0; } 25% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
 @keyframes reel-like { 0% { transform: scale(.3); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .reel-heart, .reel-pop, .reel-like { animation: none; } }
+
+/* ---------- Exclusive (paid) media: no long-press "Save image", no drag-out, no print ---------- */
+.no-save { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+img.no-save, video.no-save { pointer-events: none; }
+@media print { .no-save-wrap { display: none !important; } }
+
+/* ---------- iOS Safari zooms the whole page when you tap a text field whose font is smaller than 16px (the chat box was 14px).
+   Keeping fields at 16px stops the zoom, so the page stays put when the keyboard opens. ---------- */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), textarea, select { font-size: 16px !important; }
+}
