@@ -7,7 +7,7 @@ import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { Check, AlertTriangle, Clock } from 'lucide-react';
 import { get } from '../lib/query.js';
 import { Meetups, Requests } from './Lists.jsx';
-import { api, fmtPoints, fmtNaira, uid } from '../lib/api';
+import { api, fmtPoints, fmtNaira, fmtUsd, uid } from '../lib/api';
 import { useAuth } from '../context/Auth.jsx';
 import { useLive } from '../context/Live.jsx';
 
@@ -18,7 +18,7 @@ function Overview() { // each block loads, fails and retries on its own
   const an = useQuery({ queryKey: ['studio', 'analytics'], queryFn: get('/studio/analytics'), staleTime: 60_000 });
   const ea = useQuery({ queryKey: ['studio', 'earnings'], queryFn: get('/studio/earnings'), staleTime: 30_000 });
   return <div className="space-y-4">
-    <Section q={ea} height="h-24">{(e) => <div className="grid grid-cols-2 gap-3"><Stat l="Available to withdraw" v={fmtPoints(e.availableToWithdraw)} sub={fmtNaira(e.availableToWithdraw * e.nairaPerPoint)} /><Stat l="Pending earnings" v={fmtPoints(e.pendingEarnings)} /></div>}</Section>
+    <Section q={ea} height="h-24">{(e) => <div className="grid grid-cols-2 gap-3"><Stat l="Available to withdraw" v={fmtPoints(e.availableToWithdraw)} sub={fmtUsd(e.availableToWithdraw * (e.usdPerPoint ?? 1))} /><Stat l="Pending earnings" v={fmtPoints(e.pendingEarnings)} /></div>}</Section>
     <Section q={an} height="h-56">{(a) => <><div className="grid grid-cols-2 gap-3"><Stat l="Followers" v={a.followers} /><Stat l="Profile views" v={a.profileViews} /><Stat l="Active subscribers" v={a.subscribers} /><Stat l="Gifts received" v={a.giftsReceived} /><Stat l="Rating" v={a.rating ? `★ ${a.rating.avg}` : '–'} sub={a.rating && `${a.rating.count} reviews`} /></div>
       <div className="card"><p className="text-sm text-ink2 mb-2">Earnings, last 7 days (points)</p><LineChart points={a.days.map((d) => ({ label: WD[new Date(d.date).getDay()], value: d.points }))} /></div></>}</Section></div>;
 }
@@ -48,11 +48,11 @@ function Earnings() {
   const go = async (ev) => { ev.preventDefault(); setErr(''); setBusy(true); try { const d = await api('/studio/payouts', { method: 'POST', body: { amountPoints: Number(amount) } }); toast(d.message); load(); } catch (x) { setErr(x.message); } finally { setBusy(false); } };
   if (!e || !info) return <Skeleton className="h-64" />;
   const blocked = info.requestedToday; const tooLow = Number(amount) < info.minPayoutPoints || Number(amount) > e.availableToWithdraw;
-  return <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><Stat l="Gross revenue" v={fmtPoints(e.gross)} /><Stat l="Platform fees" v={fmtPoints(e.platformFees)} /><Stat l="Available" v={fmtPoints(e.availableToWithdraw)} sub={fmtNaira(e.availableToWithdraw * e.nairaPerPoint)} /><Stat l="Paid out" v={fmtPoints(e.paidOut)} /><Stat l="Pending payouts" v={fmtPoints(e.pendingPayouts)} /><Stat l="Refunded" v={fmtPoints(e.refunded)} /></div>
+  return <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><Stat l="Gross revenue" v={fmtPoints(e.gross)} /><Stat l="Platform fees" v={fmtPoints(e.platformFees)} /><Stat l="Available" v={fmtPoints(e.availableToWithdraw)} sub={fmtUsd(e.availableToWithdraw * (e.usdPerPoint ?? 1))} /><Stat l="Paid out" v={fmtPoints(e.paidOut)} /><Stat l="Pending payouts" v={fmtPoints(e.pendingPayouts)} /><Stat l="Refunded" v={fmtPoints(e.refunded)} /></div>
     <div className="card !p-3"><button className="w-full flex justify-between text-sm font-semibold" onClick={() => setSteps(!steps)} aria-expanded={steps}>How withdrawals work<span className="text-ink2">{steps ? '–' : '+'}</span></button>{steps && <ol className="mt-3 space-y-1.5 text-sm text-ink2 list-decimal pl-5 animate-rise">{STEPS_TEXT.map((t) => <li key={t}>{t}</li>)}</ol>}</div>
     <BankAccount info={info} onSaved={() => infoQ.refetch()} />
     {info.account && <form onSubmit={go} className="card space-y-3"><h3 className="font-semibold">Request withdrawal</h3>
-      <label className="block text-sm">Amount (points)<input className="input mt-1" type="number" min={info.minPayoutPoints} max={e.availableToWithdraw} value={amount} onChange={(x) => setAmount(x.target.value)} disabled={blocked} /><span className="text-xs text-muted">Minimum {info.minPayoutPoints} pts · you receive {fmtNaira(Number(amount || 0) * e.nairaPerPoint)}</span></label>
+      <label className="block text-sm">Amount (points)<input className="input mt-1" type="number" min={info.minPayoutPoints} max={e.availableToWithdraw} value={amount} onChange={(x) => setAmount(x.target.value)} disabled={blocked} /><span className="text-xs text-muted">Minimum {info.minPayoutPoints} pts · you receive {fmtNaira(Number(amount || 0) * e.nairaPerPoint)} ({fmtUsd(Number(amount || 0) * (e.usdPerPoint ?? 1))})</span></label>
       <p className="text-xs text-ink2 flex gap-2"><Clock size={14} className="shrink-0 mt-0.5" />{info.eta} You can request one withdrawal per day.</p>
       {blocked && <p role="alert" className="text-sm text-warn">You have already requested a withdrawal today. You can request again tomorrow.</p>}
       <Err>{err}</Err><button className="btn-primary w-full" disabled={busy || blocked || tooLow}>{busy ? 'Requesting…' : `Withdraw ${fmtNaira(Number(amount || 0) * e.nairaPerPoint)}`}</button></form>}

@@ -10,7 +10,7 @@ const Doc = ({ title, children, draft }) => <PublicPage><article className="max-
 
 export const About = () => { const p = usePlatform(); return <Doc title="About us">
   <p>{p.name} is a social platform for Nigerian creators and their supporters. Fans follow, chat, unlock exclusive content and send gifts. Creators build an audience and earn from it.</p>
-  <h2>How points work</h2><p>Points are in-app credit. You buy them with naira (1 point = ₦100) and spend them inside the platform. Points are not cash and cannot be withdrawn. Creators earn from sales and can request a withdrawal of their earnings, after the platform fee.</p>
+  <h2>How points work</h2><p>Points are in-app credit. You buy them with a card (1 point = $1 USD, charged in naira at the current rate) and spend them inside the platform. Points are not cash and cannot be withdrawn. Creators earn from sales and can request a withdrawal of their earnings, after the platform fee.</p>
   <h2>Our principles</h2><p>Clear pricing, protected paid content, verified reviews and real-time communication. We keep creator earnings separate from user points so everything stays auditable.</p>
 </Doc>; };
 

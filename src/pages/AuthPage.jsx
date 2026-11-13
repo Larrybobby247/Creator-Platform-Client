@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { safeNext } from '../lib/next.js';
 import { PublicPage } from '../components/PublicShell.jsx';
+import { Eye, EyeOff } from 'lucide-react';
 import { Err } from '../components/ui.jsx';
 import { api } from '../lib/api';
 import { ResendForm } from './VerifyEmail.jsx';
@@ -17,7 +18,7 @@ function Toggle({ on, onChange, children }) {
 export default function AuthPage({ mode }) {
   const { setUser } = useAuth(); const nav = useNavigate(); const [q] = useSearchParams();
   const signup = mode === 'signup';
-  const [f, setF] = useState({}); const [terms, setTerms] = useState(false); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({}); const [showPw, setShowPw] = useState(false); const [terms, setTerms] = useState(false); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null); const [mailFailed, setMailFailed] = useState(false); const [unverified, setUnverified] = useState(null); const [cfg, setCfg] = useState(null); const gRef = useRef(); const termsRef = useRef(false); termsRef.current = terms;
   const ref = q.get('ref') || localStorage.getItem('ref') || undefined;
   useEffect(() => { if (q.get('ref')) localStorage.setItem('ref', q.get('ref')); }, []);
@@ -57,7 +58,8 @@ export default function AuthPage({ mode }) {
       {signup && <div className="grid grid-cols-2 gap-2"><label className="block text-sm">Gender <span className="text-muted">(optional)</span><select className="input mt-1" defaultValue="" onChange={(e) => setF({ ...f, gender: e.target.value || undefined })}><option value="">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label><label className="block text-sm">Age <span className="text-muted">(optional)</span><input type="number" min={18} max={120} className="input mt-1" placeholder="18+" onChange={(e) => setF({ ...f, age: e.target.value ? Number(e.target.value) : undefined })} /></label></div>}
       {signup && <label className="block text-sm">Username<input className="input mt-1" required minLength={3} pattern="[A-Za-z0-9_]+" onChange={set('username')} /></label>}
       <label className="block text-sm">Email<input type="email" className="input mt-1" required onChange={set('email')} /></label>
-      <label className="block text-sm">Password<input type="password" minLength={8} className="input mt-1" required onChange={set('password')} /></label>
+      <label className="block text-sm">Password<span className="relative block mt-1"><input type={showPw ? 'text' : 'password'} minLength={8} className="input !pr-11" required autoComplete={signup ? 'new-password' : 'current-password'} onChange={set('password')} />
+        <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'} aria-pressed={showPw} className="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 grid place-items-center text-ink2 hover:text-ink">{showPw ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>
       <Err>{err}</Err>
       {unverified && <ResendForm initialEmail={unverified} />}
       <button className="btn-primary w-full" disabled={busy || locked}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Log in'}</button>

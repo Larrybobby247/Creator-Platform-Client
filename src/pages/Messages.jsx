@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { keys } from '../lib/query.js';
@@ -83,15 +83,16 @@ function PaidBody({ m, mine, onUnlock }) {
     {m.price > 0 && mine && <p className="text-[10px]"><span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold ${m.paidCount > 0 ? 'bg-black/40 text-ok' : 'bg-black/25 text-white/80'}`}>{m.paidCount > 0 && <Check size={11} strokeWidth={3} />}Paid</span> <span className="opacity-70">· {m.price} pts</span></p>}</div>;
 }
 function MediaBubble({ m }) {
+  const prot = m.price > 0; const block = (e) => prot && e.preventDefault(); // paid chat media: watch only, no save
   const [url, setUrl] = useState(null); const [view, setView] = useState(false);
   useEffect(() => { if (m.mediaId && !m.pending && !m.locked) api(`/messages/message/${m._id}/media`).then((d) => setUrl(d.url)).catch(() => {}); }, [m._id, m.locked, m.mediaId]);
   if (m.pending) return <span className="text-xs">Uploading…</span>;
   if (!url) return <div className="w-40 h-24 rounded-btn bg-black/20 animate-pulse" />;
-  if (m.type === 'VOICE') return <audio src={url} controls className="max-w-full" />;
+  if (m.type === 'VOICE') return <audio src={url} controls controlsList={prot ? 'nodownload' : undefined} onContextMenu={block} className="max-w-full" />;
   return <>
     <button type="button" onClick={() => setView(true)} className="relative block rounded-btn overflow-hidden" aria-label={m.type === 'VIDEO' ? 'Play video' : 'View photo'}>
-      {m.type === 'IMAGE' ? <img src={url} alt="" className="rounded-btn max-h-64 cursor-zoom-in" /> : <><video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="rounded-btn max-h-64 pointer-events-none" /><span className="absolute inset-0 grid place-items-center"><span className="w-11 h-11 rounded-full bg-black/60 grid place-items-center"><Play fill="white" size={18} /></span></span></>}</button>
-    {view && <MediaViewer items={[{ url, type: m.type === 'VIDEO' ? 'VIDEO' : 'IMAGE' }]} onClose={() => setView(false)} />}</>;
+      {m.type === 'IMAGE' ? <img src={url} alt="" draggable={false} onContextMenu={block} className={`rounded-btn max-h-64 cursor-zoom-in ${prot ? 'no-save' : ''}`} /> : <><video src={`${url}#t=0.1`} preload="metadata" muted playsInline {...(prot ? { controlsList: 'nodownload', disablePictureInPicture: true, onContextMenu: block } : {})} className={`rounded-btn max-h-64 pointer-events-none ${prot ? 'no-save' : ''}`} /><span className="absolute inset-0 grid place-items-center"><span className="w-11 h-11 rounded-full bg-black/60 grid place-items-center"><Play fill="white" size={18} /></span></span></>}</button>
+    {view && <MediaViewer items={[{ url, type: m.type === 'VIDEO' ? 'VIDEO' : 'IMAGE', prot }]} onClose={() => setView(false)} />}</>;
 }
 
 export default function Messages() {
@@ -106,19 +107,28 @@ export default function Messages() {
   const [rec, setRec] = useState(null); const [recSec, setRecSec] = useState(0); const [pricing, setPricing] = useState(null); const [msgMenu, setMsgMenu] = useState(null); const [paid, setPaid] = useState(false); const [pf, setPf] = useState({ teaser: '', paidText: '', price: 3 }); const [up, setUp] = useState(false); const cancelRec = useRef(false);
   const bottom = useRef(); const typingTimer = useRef(); const lastTyping = useRef(0); const fileRef = useRef(); const recRef = useRef();
   const openRef = useRef(null); openRef.current = open;
+  // A real mouse (PC / laptop): no 3-dot buttons or scroll arrow; right-click a bubble for its menu instead. Phones and tablets keep the touch controls.
+  const [fine, setFine] = useState(() => typeof matchMedia === 'function' && matchMedia('(hover: hover) and (pointer: fine)').matches);
+  useEffect(() => { if (typeof matchMedia !== 'function') return; const mq = matchMedia('(hover: hover) and (pointer: fine)'); const on = () => setFine(mq.matches); mq.addEventListener?.('change', on); return () => mq.removeEventListener?.('change', on); }, []);
+  const [ctxPos, setCtxPos] = useState(null); const [loadingOlder, setLoadingOlder] = useState(false); const olderBusy = useRef(false); const armed = useRef(false); const keepScroll = useRef(null); const skipScroll = useRef(false);
   const other = (c) => c.participants.find((p) => p._id !== user.id) || c.participants[0];
 
+  useEffect(() => { if (!msgMenu) setCtxPos(null); }, [msgMenu]);
   const loadList = useCallback(() => qc.invalidateQueries({ queryKey: ['conversations'] }), [qc]);
   useEffect(() => { const to = sp.get('to'); if (!to) return;
     api('/messages/conversations?category=all').then(async (d) => { const c = d.items.find((x) => x.participants.some((p) => p._id === to));
       if (c) return setOpen(c); const u = await api(`/creators/${to}`).catch(() => null); if (u) setOpen({ draft: true, policy: u.creator.dmPolicy && u.creator.accountMode === 'CREATOR' ? u.creator.dmPolicy : null, participants: [{ _id: user.id }, { _id: to, username: u.creator.username, displayName: u.creator.displayName, avatarUrl: u.creator.avatarUrl }] }); }); }, [sp]);
   const openConv = useCallback(async (c) => { knownRef.current = null; atBottom.current = true; if (c.draft) { setMsgs([]); return; } const d = await api(`/messages/${c._id}`); knownRef.current = null; setOpen((x) => (x && x._id === c._id ? { ...x, blockedByMe: d.blockedByMe, blockedMe: d.blockedMe } : x)); setMsgs(d.messages); setHasMore(!!d.hasMore); setSeen(false); refreshCounts(); loadList(); }, []);
-  useEffect(() => { if (open) { setTab('chat'); setReply(null); setEditing(null); setShowDown(false); openConv(open); } }, [open?._id]);
+  useEffect(() => { if (open) { armed.current = false; setTab('chat'); setReply(null); setEditing(null); setShowDown(false); openConv(open); } }, [open?._id]);
+  // After older messages are added above, put the list back exactly where it was so the reader does not jump.
+  useLayoutEffect(() => { const k = keepScroll.current; const el = listRef.current; if (!k || !el) return; keepScroll.current = null; el.scrollTop = el.scrollHeight - k.h + k.t; skipScroll.current = true; }, [msgs]);
   // Remember which messages were already on screen: only a message that arrives AFTER that gets the pop-in animation (not the history, not older pages).
   useEffect(() => { const k = new Set(); let newest = 0; for (const m of msgs) { k.add(m._id); if (m.clientId) k.add(m.clientId); const t = new Date(m.createdAt).getTime(); if (t > newest) newest = t; } if (knownRef.current === null || msgs.length) { knownRef.current = k; newestRef.current = newest; } }, [msgs]);
   // Only the message list scrolls: the page behind is locked while a chat is open and we scroll the list itself (scrollIntoView used to scroll the whole page and push the header away).
-  useEffect(() => { const el = listRef.current; if (!el) return; const last = msgs[msgs.length - 1]; if (atBottom.current || last?.senderId === user.id) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }, [msgs.length, typing]);
-  const onListScroll = (e) => { const el = e.currentTarget; const away = el.scrollHeight - el.scrollTop - el.clientHeight; atBottom.current = away < 120; setShowDown(away > 320); };
+  useEffect(() => { const el = listRef.current; if (!el) return; if (skipScroll.current) { skipScroll.current = false; return; } const last = msgs[msgs.length - 1]; if (atBottom.current || last?.senderId === user.id) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }, [msgs.length, typing]);
+  const onListScroll = (e) => { const el = e.currentTarget; const away = el.scrollHeight - el.scrollTop - el.clientHeight; atBottom.current = away < 120; setShowDown(away > 320);
+    // Reaching the top of what is loaded loads the next older batch by itself (only once the reader has actually scrolled, not on opening the chat).
+    if (el.scrollTop > 200) armed.current = true; else if (el.scrollTop < 60 && armed.current && hasMoreRef.current && !olderBusy.current) loadEarlierRef.current(); };
   const toBottom = () => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   // Tap a quoted reply: scroll to the original message and flash it for a moment (like WhatsApp). Loads older messages first if it is further up.
   const oUser = open ? other(open) : null;
@@ -152,7 +162,9 @@ export default function Messages() {
     return () => { socket.off('message:deleted', onDel); socket.off('message:new', onMsg); socket.off('message:update', onUpd); socket.off('typing', onTyping); socket.off('conversation:read', onRead); };
   }, [socket, loadList]);
 
-  const loadEarlier = async () => { const first = msgs.find((m) => !m.pending); if (!first) return; const d = await api(`/messages/${open._id}?before=${encodeURIComponent(first.createdAt)}`); setMsgs((m) => [...d.messages, ...m]); setHasMore(!!d.hasMore); hasMoreRef.current = !!d.hasMore; };
+  const loadEarlier = async () => { const first = msgs.find((m) => !m.pending); if (!first || !open || olderBusy.current) return; olderBusy.current = true; setLoadingOlder(true);
+    try { const d = await api(`/messages/${open._id}?before=${encodeURIComponent(first.createdAt)}`); const el = listRef.current; if (el) keepScroll.current = { h: el.scrollHeight, t: el.scrollTop }; setMsgs((m) => [...d.messages, ...m]); setHasMore(!!d.hasMore); hasMoreRef.current = !!d.hasMore; }
+    catch { /* the next scroll to the top tries again */ } finally { olderBusy.current = false; setLoadingOlder(false); } };
   loadEarlierRef.current = loadEarlier; hasMoreRef.current = hasMore;
   const optimistic = (extra) => { const clientId = uid(); setMsgs((m) => [...m, { _id: clientId, clientId, pending: true, senderId: user.id, createdAt: new Date().toISOString(), ...extra }]); return clientId; };
   const settle = (clientId, m) => setMsgs((ms) => ms.map((x) => x.clientId === clientId ? { ...m, clientId } : x).filter((x, i, a) => a.findIndex((y) => y._id === x._id) === i));
@@ -220,6 +232,14 @@ export default function Messages() {
   const deleteChat = async () => { setChatMenu(false); if (!(await confirm({ title: 'Delete this chat?', detail: 'The conversation is removed from your list and your messages are cleared. The other person keeps theirs.', confirmLabel: 'Delete chat', danger: true }))) return; try { await api(`/messages/${open._id}/delete`, { method: 'POST' }); setOpen(null); toast('Chat deleted'); loadList(); refreshCounts(); } catch (x) { toast(x.message); } };
   const act = async (a) => { await api(`/messages/${open._id}/${a}`, { method: 'POST' }); if (a === 'archive' || a === 'unarchive') { setOpen(null); toast(a === 'archive' ? 'Archived' : 'Moved back to your inbox'); } loadList(); };
 
+  // The message actions: shown under the 3-dot button on phones, and on right-click on a PC.
+  const msgActions = (m, mine) => <>
+    <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReply(m); setMsgMenu(null); }}>Reply</button>
+    <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReact(m._id); setMsgMenu(null); }}>React</button>
+    {canEdit(m) && <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => startEdit(m)}><Pencil size={14} />Edit</button>}
+    <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => delMsg(m, 'me')}><Trash2 size={14} />Delete for me</button>
+    {mine && <button className="block w-full text-left px-3 py-2 hover:bg-line text-bad flex items-center gap-2" onClick={() => delMsg(m, 'everyone')}><Trash2 size={14} />Delete for everyone</button>}</>;
+  const ctxMsg = ctxPos && msgMenu ? msgs.find((x) => x._id === msgMenu) : null;
   if (open) { const o = other(open); const isOn = presence?.[o._id] ?? opOnline ?? open.online; const archived = cat === 'archived' || (open.archivedBy || []).includes(user.id); const lastMine = [...msgs].reverse().find((m) => m.senderId === user.id); const byId = Object.fromEntries(msgs.map((m) => [m._id, m]));
     // The open chat is its own full-screen panel (rendered into <body>, outside the scrolling page): the top bar with the name, Notes etc. is fixed, only the messages scroll.
     return createPortal(<div className="fixed inset-0 lg:left-60 z-40 bg-bg"><div className="mx-auto w-full max-w-3xl h-full flex flex-col px-4" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -249,12 +269,12 @@ export default function Messages() {
         {open.draft && open.policy?.mode === 'SUBSCRIBERS' && <p className="text-xs text-muted my-2">Only subscribers can message this creator.</p>}
         {open.accepted === false && open.requestedBy !== user.id && <div className="card !p-3 my-2 text-sm flex items-center justify-between gap-2">Message request <button className="btn-primary !py-2" onClick={() => act('accept')}>Accept</button></div>}
         <div className="relative flex-1 min-h-0"><div ref={listRef} onScroll={onListScroll} className="h-full overflow-y-auto overflow-x-hidden py-4 px-3 space-y-2">
-          {hasMore && <button className="btn-ghost !py-1.5 mx-auto block" onClick={loadEarlier}>Load earlier messages</button>}
+          {hasMore && <div className="flex justify-center py-1 h-7" aria-live="polite">{loadingOlder && <span role="status" aria-label="Loading earlier messages" className="w-5 h-5 rounded-full border-2 border-line border-t-violet animate-spin" />}</div>}
           {msgs.length === 0 && <Empty>Say hi 👋</Empty>}
           {msgs.map((m, i) => { const mine = m.senderId === user.id; const nx = msgs[i + 1]; const tail = true; /* every bubble has its tail */ void nx; const isNew = knownRef.current && !knownRef.current.has(m._id) && !(m.clientId && knownRef.current.has(m.clientId)) && new Date(m.createdAt).getTime() >= newestRef.current; const rp = m.replyTo && byId[m.replyTo]; const grouped = {}; (m.reactions || []).forEach((r) => { grouped[r.emoji] = (grouped[r.emoji] || 0) + 1; });
             if (m.deletedForAll) return <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><p className="text-xs italic text-muted border border-line rounded-card px-3 py-2 flex items-center gap-1"><Ban size={12} />{mine ? 'You deleted this message' : 'This message was deleted'}</p></div>;
             return <SwipeRow key={m._id} disabled={m.pending || m.failed} onReply={() => setReply(m)} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-              <div data-mid={m._id} className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${tail ? (mine ? 'bub-tail-me' : 'bub-tail-them') : ''} ${isNew ? (mine ? 'bubble-pop-me' : 'bubble-pop-them') : ''} ${flash === m._id ? 'msg-flash' : ''} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)}>
+              <div data-mid={m._id} className={`relative max-w-[82%] min-w-0 px-3 py-2 rounded-card text-sm break-words space-y-1 ${mine ? 'bg-violet text-white' : 'bg-card2'} ${tail ? (mine ? 'bub-tail-me' : 'bub-tail-them') : ''} ${isNew ? (mine ? 'bubble-pop-me' : 'bubble-pop-them') : ''} ${flash === m._id ? 'msg-flash' : ''} ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'ring-1 ring-bad' : ''}`} onDoubleClick={() => setReact(react === m._id ? null : m._id)} onContextMenu={(e) => { if (!fine || m.pending || m.failed) return; e.preventDefault(); setReact(null); setCtxPos({ x: e.clientX, y: e.clientY }); setMsgMenu(m._id); }}>
                 {m.storyRef && <StoryRef r={m.storyRef} mine={mine} meId={user.id} onOpen={openStory} />}
                 {m.replyTo && <button type="button" onClick={(e) => { e.stopPropagation(); jumpTo(m.replyTo); }} className="block w-full text-left text-xs opacity-80 hover:opacity-100 border-l-2 border-white/50 bg-black/15 rounded-r pl-2 pr-1 py-1 truncate" aria-label="Go to the message you replied to">{!rp ? 'Original message' : rp.deletedForAll ? 'Deleted message' : rp.locked ? 'Paid message' : rp.text || 'Attachment'}</button>}
                 {(m.locked || m.mediaId || m.paidText || m.price > 0) ? <PaidBody m={m} mine={mine} onUnlock={() => unlock(m)} /> : m.text && <p>{m.text}</p>}
@@ -262,15 +282,10 @@ export default function Messages() {
                 {react === m._id && <div className={`absolute -top-10 ${mine ? 'right-0' : 'left-0'} max-w-[88vw] bg-card border border-line rounded-full px-2 py-1 flex gap-1 z-20 shadow-lg animate-pop`}>{EMOJI.map((e) => <button key={e} className="active:scale-75 transition" onClick={() => reactTo(m, e)}>{e}</button>)}<button className="w-6 h-6 rounded-full bg-card2 grid place-items-center text-sm leading-none" aria-label="More emoji" onClick={() => { setMore(m); setReact(null); }}>+</button></div>}</div>
               {Object.keys(grouped).length > 0 && <div className="flex gap-1 -mt-1 text-xs bg-card border border-line rounded-full px-2 py-0.5">{Object.entries(grouped).map(([e, n]) => <span key={e} className={burst?.id === m._id && burst.emoji === e ? 'react-chip-pop inline-block' : ''}>{e}{n > 1 && n}</span>)}</div>}
               <span className="relative text-[10px] text-muted mt-0.5 flex items-center gap-1">{m.failed ? 'Failed to send' : m.pending ? 'Sending…' : <>{m.editedAt && <span className="italic">edited · </span>}{ago(m.createdAt)}</>}{mine && m === lastMine && seen && !m.pending ? ' · Seen' : ''}
-                {!m.pending && !m.failed && <button aria-label="Message options" aria-expanded={msgMenu === m._id} className="p-1 text-ink2" onClick={() => setMsgMenu(msgMenu === m._id ? null : m._id)}><MoreVertical size={14} /></button>}
-                {msgMenu === m._id && <div className={`absolute z-20 bottom-full mb-1 ${mine ? 'right-0' : 'left-0'} w-48 bg-card2 border border-line rounded-btn text-sm text-ink overflow-hidden animate-fade`}>
-                  <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReply(m); setMsgMenu(null); }}>Reply</button>
-                  <button className="block w-full text-left px-3 py-2 hover:bg-line" onClick={() => { setReact(m._id); setMsgMenu(null); }}>React</button>
-                  {canEdit(m) && <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => startEdit(m)}><Pencil size={14} />Edit</button>}
-                  <button className="block w-full text-left px-3 py-2 hover:bg-line flex items-center gap-2" onClick={() => delMsg(m, 'me')}><Trash2 size={14} />Delete for me</button>
-                  {mine && <button className="block w-full text-left px-3 py-2 hover:bg-line text-bad flex items-center gap-2" onClick={() => delMsg(m, 'everyone')}><Trash2 size={14} />Delete for everyone</button>}</div>}</span></SwipeRow>; })}
+                {!m.pending && !m.failed && !fine && <button aria-label="Message options" aria-expanded={msgMenu === m._id} className="p-1 text-ink2" onClick={() => setMsgMenu(msgMenu === m._id ? null : m._id)}><MoreVertical size={14} /></button>}
+                {msgMenu === m._id && !ctxPos && <div className={`absolute z-20 bottom-full mb-1 ${mine ? 'right-0' : 'left-0'} w-48 bg-card2 border border-line rounded-btn text-sm text-ink overflow-hidden animate-fade`}>{msgActions(m, mine)}</div>}</span></SwipeRow>; })}
           {typing && <div className="relative bub-tail-them bg-card2 w-16 px-4 py-2 text-muted tracking-widest animate-pulse">•••</div>}<div ref={bottom} /></div>
-          {showDown && <button onClick={toBottom} aria-label="Scroll to the latest message" className="absolute bottom-3 right-2 w-10 h-10 rounded-full bg-card2 border border-line shadow-lg grid place-items-center text-ink hover:bg-line animate-pop"><ArrowDown size={18} /></button>}</div>
+          {showDown && !fine && <button onClick={toBottom} aria-label="Scroll to the latest message" className="absolute bottom-3 right-2 w-10 h-10 rounded-full bg-card2 border border-line shadow-lg grid place-items-center text-ink hover:bg-line animate-pop"><ArrowDown size={18} /></button>}</div>
         <Err>{err}</Err>
         {editing && <div className="text-xs bg-card2 rounded-t-btn px-3 py-2 flex justify-between items-center"><span className="flex items-center gap-1.5 text-violet-light font-semibold"><Pencil size={12} />Editing message</span><button onClick={() => { setEditing(null); setText(''); }} aria-label="Cancel edit">×</button></div>}
         {reply && <div className="text-xs bg-card2 rounded-t-btn px-3 py-2 flex justify-between"><span className="truncate">Replying to: {reply.locked ? 'Paid message' : reply.text || 'Attachment'}</span><button onClick={() => setReply(null)} aria-label="Cancel reply">×</button></div>}
@@ -286,7 +301,8 @@ export default function Messages() {
     {giftTo && <GiftModal creator={giftTo} onClose={() => setGiftTo(null)} />}
     {more && <EmojiSheet onPick={(e) => reactTo(more, e)} onClose={() => setMore(null)} />}
     {storyView && <StoryViewer groups={[storyView.group]} start={0} startStoryId={storyView.storyId} onClose={() => setStoryView(null)} />}
-    {(react || msgMenu) && <div className="fixed inset-0 z-[15]" aria-hidden onClick={() => { setReact(null); setMsgMenu(null); }} onTouchStart={() => { setReact(null); setMsgMenu(null); }} />}
+    {(react || msgMenu) && <div className="fixed inset-0 z-[15]" aria-hidden onClick={() => { setReact(null); setMsgMenu(null); }} onContextMenu={(e) => { e.preventDefault(); setReact(null); setMsgMenu(null); }} onTouchStart={() => { setReact(null); setMsgMenu(null); }} />}
+    {ctxMsg && createPortal(<div role="menu" aria-label="Message options" className="fixed z-[90] w-48 bg-card2 border border-line rounded-btn text-sm text-ink overflow-hidden shadow-xl animate-fade" style={{ left: Math.max(8, Math.min(ctxPos.x, window.innerWidth - 200)), top: Math.max(8, Math.min(ctxPos.y, window.innerHeight - 190)) }} onContextMenu={(e) => e.preventDefault()}>{msgActions(ctxMsg, ctxMsg.senderId === user.id)}</div>, document.body)}
     {pricing && <PricePrompt title={pricing.file.type.startsWith('audio') ? 'Voice message: free or paid?' : 'Free or paid?'} noun={pricing.file.type.startsWith('audio') ? 'this voice message' : 'this file'} defaultPrice={user.services?.paidVoice?.pricePoints || 3} onClose={() => setPricing(null)} onDone={({ price }) => { const f = pricing.file; setPricing(null); sendFile(f, price > 0 ? { price } : {}); }} />}
     </div></div>, document.body); }
 

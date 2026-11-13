@@ -2,7 +2,7 @@ import InnercircleInfoModal from '../components/InnercircleInfo.jsx';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Share2, Pencil, MoreHorizontal, Flag, Ban, Link2, Play } from 'lucide-react';
+import { Share2, Pencil, MoreHorizontal, Flag, Ban, Link2, Play, Trash2 } from 'lucide-react';
 import PostCard from '../components/PostCard.jsx';
 import GiftModal from '../components/GiftModal.jsx';
 import EditProfileModal from '../components/EditProfileModal.jsx';
@@ -38,13 +38,19 @@ export function MeetupModal({ creator, onClose }) {
 }
 
 // A reel in the profile grid: a still frame from the video (a moment in, not the black first frame) with its likes; opens the reel viewer on that reel.
-function ReelTile({ r, authorId }) {
+function ReelTile({ r, authorId, own }) {
   const q = useQuery({ queryKey: ['media', r._id, 0, false], queryFn: get(`/media/posts/${r._id}/media/0`), staleTime: 4 * 60_000, retry: 1 });
-  return <Link to={`/explore?author=${authorId}&start=${r._id}`} aria-label="Open reel" className="relative block aspect-[9/16] rounded-btn overflow-hidden bg-card2 group">
+  const confirm = useConfirm(); const { toast } = useLive(); const qc = useQueryClient(); const [gone, setGone] = useState(false);
+  // Owners can delete their own reel right from the grid.
+  const del = async (e) => { e.preventDefault(); e.stopPropagation(); if (!(await confirm({ title: 'Delete this reel?', detail: 'It will disappear from your profile and from Explore. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return;
+    try { await api(`/media/posts/${r._id}`, { method: 'DELETE' }); setGone(true); toast('Reel deleted'); ['feed', 'reels', 'reel-one'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); } catch (x) { toast(x.message); } };
+  if (gone) return null;
+  return <div className="relative"><Link to={`/explore?author=${authorId}&start=${r._id}`} aria-label="Open reel" className="relative block aspect-[9/16] rounded-btn overflow-hidden bg-card2 group">
     {q.data?.url ? <video src={`${q.data.url}#t=0.6`} preload="metadata" muted playsInline className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300 pointer-events-none" /> : <div className="absolute inset-0 animate-pulse bg-card2" />}
     <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent" />
     <span className="absolute bottom-1.5 left-2 text-white text-[11px] font-semibold flex items-center gap-1 drop-shadow"><Play size={11} fill="white" />{r.likeCount > 0 ? r.likeCount : ''}</span>
-    {r.items?.[0]?.durationSec ? <span className="absolute top-1.5 right-1.5 text-[10px] text-white bg-black/50 rounded-full px-1.5 py-0.5">{Math.floor(r.items[0].durationSec / 60)}:{String(Math.round(r.items[0].durationSec % 60)).padStart(2, '0')}</span> : null}</Link>;
+    {r.items?.[0]?.durationSec ? <span className="absolute top-1.5 right-1.5 text-[10px] text-white bg-black/50 rounded-full px-1.5 py-0.5">{Math.floor(r.items[0].durationSec / 60)}:{String(Math.round(r.items[0].durationSec % 60)).padStart(2, '0')}</span> : null}</Link>
+    {own && <button type="button" onClick={del} aria-label="Delete reel" className="absolute top-1.5 left-1.5 z-10 w-8 h-8 rounded-full bg-black/60 backdrop-blur text-white grid place-items-center hover:bg-bad"><Trash2 size={15} /></button>}</div>;
 }
 export default function Profile() {
   const { username } = useParams(); const [menu, setMenu] = useState(false); const confirm = useConfirm(); const { user, refresh, logout } = useAuth(); const nav = useNavigate(); const { toast } = useLive(); const qc = useQueryClient(); const ask = useConfirmSpend();
@@ -98,7 +104,7 @@ export default function Profile() {
     <div className="flex border-b border-divider overflow-x-auto no-scrollbar" role="tablist">{tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`flex-1 shrink-0 px-4 py-3 text-sm font-medium border-b-2 ${tab === k ? 'border-violet' : 'border-transparent text-ink2'}`}>{l}</button>)}</div>
     <div key={tab} className="space-y-4 animate-tab">
       {(tab === 'posts' || tab === 'exclusive') && (posts.isPending ? <Skeleton className="h-40" /> : posts.isError ? <ErrorState error={posts.error} onRetry={() => posts.refetch()} /> : list.length === 0 ? <Empty>{own ? 'You have not posted yet.' : 'Nothing here yet.'}</Empty> : <>{list.map((p) => <PostCard key={p._id} post={p} onGift={setGift} onChange={() => { reload(); posts.refetch(); }} />)}<div ref={sentinel} className="h-6 grid place-items-center text-xs text-muted">{posts.isFetchingNextPage ? 'Loading…' : ''}</div></>)}
-      {tab === 'reels' && (reels.isPending ? <Skeleton className="h-40" /> : reels.isError ? <ErrorState error={reels.error} onRetry={() => reels.refetch()} /> : reelList.length === 0 ? <Empty>{own ? 'No reels yet. Tap Create and switch to Reel.' : 'No reels yet.'}</Empty> : <><div className="grid grid-cols-3 gap-1.5">{reelList.map((r) => <ReelTile key={r._id} r={r} authorId={c._id} />)}</div>{reels.hasNextPage && <button className="btn-ghost w-full mt-3" disabled={reels.isFetchingNextPage} onClick={() => reels.fetchNextPage()}>{reels.isFetchingNextPage ? 'Loading…' : 'Load more'}</button>}</>)}
+      {tab === 'reels' && (reels.isPending ? <Skeleton className="h-40" /> : reels.isError ? <ErrorState error={reels.error} onRetry={() => reels.refetch()} /> : reelList.length === 0 ? <Empty>{own ? 'No reels yet. Tap Create and switch to Reel.' : 'No reels yet.'}</Empty> : <><div className="grid grid-cols-3 gap-1.5">{reelList.map((r) => <ReelTile key={r._id} r={r} authorId={c._id} own={own} />)}</div>{reels.hasNextPage && <button className="btn-ghost w-full mt-3" disabled={reels.isFetchingNextPage} onClick={() => reels.fetchNextPage()}>{reels.isFetchingNextPage ? 'Loading…' : 'Load more'}</button>}</>)}
       {tab === 'reviews' && (rev.isPending ? <Skeleton /> : <div className="space-y-3">
         <div className="card flex gap-6 items-center"><div className="text-center"><p className="text-4xl font-bold">{rev.data.avg ?? '–'}</p><p className="text-xs text-muted">{rev.data.count} reviews</p></div><div className="flex-1 space-y-1">{[5, 4, 3, 2, 1].map((s) => <div key={s} className="flex items-center gap-2 text-xs"><span>{s}</span><div className="flex-1 h-2 bg-card2 rounded-full overflow-hidden"><div className="h-full bg-warn transition-all duration-700" style={{ width: `${rev.data.count ? (rev.data.distribution[s - 1] / rev.data.count) * 100 : 0}%` }} /></div></div>)}</div></div>
         {(elig.data?.items || []).map((e) => <div key={e.id} className="card space-y-2"><p className="text-sm font-semibold">Rate your {e.kind}</p><select className="input" value={rate.stars} onChange={(x) => setRate({ ...rate, stars: Number(x.target.value) })}>{[5, 4, 3, 2, 1].map((s) => <option key={s} value={s}>{s} stars</option>)}</select><textarea className="input" placeholder="Optional review" onChange={(x) => setRate({ ...rate, text: x.target.value })} /><button className="btn-primary" onClick={() => submitRate(e.id)}>Submit review</button></div>)}

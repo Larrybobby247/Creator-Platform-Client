@@ -18,7 +18,7 @@ function Reel({ post, active, near, muted, setMuted, onComment, onChange, onProf
   const { user } = useAuth(); const { toast } = useLive();
   const videoRef = useRef(null); const wrap = useRef(null); const lastTap = useRef(0); const tapTimer = useRef(null);
   const [p, setP] = useState(post); const [paused, setPaused] = useState(false); const [ready, setReady] = useState(false); const [waiting, setWaiting] = useState(false);
-  const [progress, setProgress] = useState(0); const [hearts, setHearts] = useState([]); const [flash, setFlash] = useState(null); const [wide, setWide] = useState(false); const [more, setMore] = useState(false);
+  const [progress, setProgress] = useState(0); const [hearts, setHearts] = useState([]); const [flash, setFlash] = useState(null); const [more, setMore] = useState(false);
   useEffect(() => setP(post), [post]);
   const a = p.authorId; const own = a?._id === user.id;
   // signed video link: only fetched for the reel on screen and its neighbours
@@ -30,8 +30,10 @@ function Reel({ post, active, near, muted, setMuted, onComment, onChange, onProf
   const toggleLike = async (forceOn) => { const was = p.liked; if (forceOn && was) return; setP((x) => ({ ...x, liked: !was, likeCount: x.likeCount + (was ? -1 : 1) }));
     try { const d = await api(`/posts/${p._id}/like`, { method: 'POST' }); setP((x) => ({ ...x, liked: d.liked, likeCount: d.likeCount })); } catch (e) { setP((x) => ({ ...x, liked: was, likeCount: x.likeCount + (was ? 1 : -1) })); toast(e.message); } };
   const follow = async () => { setP((x) => ({ ...x, following: !x.following })); try { const d = await api(`/follow/${a._id}`, { method: 'POST' }); setP((x) => ({ ...x, following: d.following })); } catch (e) { setP((x) => ({ ...x, following: !x.following })); toast(e.message); } };
-  const share = async () => { const link = `${location.origin}/u/${a.username}`; const text = (p.content || '').slice(0, 100);
-    try { if (navigator.share) await navigator.share({ title: `${a.displayName || a.username} on Pryvi`, text, url: link }); else { await navigator.clipboard.writeText(link); toast('Link copied'); } } catch { /* cancelled */ } };
+  // The link opens THIS video (logged-in people land on it in Explore; visitors see it on a public page with a sign-up prompt).
+  const share = async () => { const link = `${location.origin}/reel/${p._id}`; const text = (p.content || '').slice(0, 100);
+    try { if (navigator.share) await navigator.share({ title: `${a.displayName || a.username} on Pryvi`, text, url: link }); else { await navigator.clipboard.writeText(link); toast('Video link copied'); } }
+    catch (e) { if (e?.name === 'AbortError') return; try { await navigator.clipboard.writeText(link); toast('Video link copied'); } catch { toast('Could not share this video'); } } };
   // one tap = pause / play, two quick taps = like (with a floating heart where you tapped)
   const tap = (e) => { const now = Date.now(); const r = wrap.current.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
     if (now - lastTap.current < 280) { clearTimeout(tapTimer.current); lastTap.current = 0; toggleLike(true); const id = now; setHearts((h) => [...h, { id, x, y, rot: Math.round(Math.random() * 30 - 15) }]); setTimeout(() => setHearts((h) => h.filter((k) => k.id !== id)), 900); return; }
@@ -39,13 +41,12 @@ function Reel({ post, active, near, muted, setMuted, onComment, onChange, onProf
   const seek = (e) => { const v = videoRef.current; if (!v?.duration) return; const r = e.currentTarget.getBoundingClientRect(); v.currentTime = ((e.clientX - r.left) / r.width) * v.duration; };
   const caption = p.content || ''; const long = caption.length > 90;
   return <section data-id={p._id} className="reel relative h-full w-full snap-start snap-always overflow-hidden bg-black" aria-label={`Reel by ${a?.username}`}>
-    {/* blurred copy of the video behind it fills the screen for landscape videos */}
+    {/* the video keeps its own shape (nothing is cropped or stretched); the black around it is just the screen */}
     <div ref={wrap} className="absolute inset-0" onClick={tap}>
       {url ? <video ref={videoRef} src={url} loop playsInline muted={muted} preload={active ? 'auto' : 'metadata'} disablePictureInPicture
-        onLoadedMetadata={(e) => { const v = e.currentTarget; setWide(v.videoWidth > v.videoHeight * 1.05); }}
         onLoadedData={() => setReady(true)} onCanPlay={() => setWaiting(false)} onWaiting={() => setWaiting(true)} onPlaying={() => { setWaiting(false); setReady(true); }}
         onTimeUpdate={(e) => { const v = e.currentTarget; if (v.duration) setProgress(v.currentTime / v.duration); }}
-        className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${ready ? 'opacity-100' : 'opacity-0'} ${wide ? 'object-contain' : 'object-cover'}`} /> : null}
+        className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${ready ? 'opacity-100' : 'opacity-0'} object-contain`} /> : null}
       {!ready && <div className="absolute inset-0 bg-gradient-to-b from-card2 via-card to-card2 animate-pulse grid place-items-center"><Film className="text-muted" size={34} /></div>}
       {(waiting && ready && active) && <div className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-12 h-12 rounded-full border-4 border-white/25 border-t-white animate-spin" /></div>}
       {flash && <div className="absolute inset-0 grid place-items-center pointer-events-none"><span key={flash + progress} className="w-20 h-20 rounded-full bg-black/45 backdrop-blur grid place-items-center reel-pop">{flash === 'pause' ? <span className="flex gap-1.5"><i className="w-2 h-7 bg-white rounded" /><i className="w-2 h-7 bg-white rounded" /></span> : <Play size={34} fill="white" className="text-white ml-1" />}</span></div>}
@@ -76,10 +77,11 @@ function Reel({ post, active, near, muted, setMuted, onComment, onChange, onProf
 const Rail = ({ children, label, onClick, aria }) => <button onClick={(e) => { e.stopPropagation(); onClick(); }} aria-label={aria} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><span className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm grid place-items-center drop-shadow">{children}</span>{label !== '' && <span className="text-[11px] font-semibold drop-shadow">{label}</span>}</button>;
 
 export default function Explore() {
-  const nav = useNavigate(); const [sp] = useSearchParams(); const author = sp.get('author'); const start = sp.get('start');
+  const nav = useNavigate(); const [sp] = useSearchParams(); const author = sp.get('author'); const start = sp.get('start'); const only = sp.get('reel');
   const [active, setActive] = useState(0); const [muted, setMuted] = useState(true); const [comments, setComments] = useState(null); const box = useRef(null);
   const feed = useInfiniteQuery({ queryKey: ['reels', author || 'all'], initialPageParam: '', queryFn: ({ pageParam, signal }) => api(`/feed?kind=REEL${author ? `&author=${author}` : ''}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`, { signal }), getNextPageParam: (l) => l.nextCursor || undefined, staleTime: 60_000 });
-  const reels = useMemo(() => { const seen = new Set(); return (feed.data?.pages.flatMap((p) => p.posts) || []).filter((r) => r.items?.[0]?.mediaType === 'VIDEO' && !seen.has(r._id) && seen.add(r._id)); }, [feed.data]);
+  const one = useQuery({ queryKey: ['reel-one', only], queryFn: get(`/posts/${only}`), enabled: !!only, staleTime: 60_000, retry: false });
+  const reels = useMemo(() => { const seen = new Set(); return [...(one.data?.post ? [one.data.post] : []), ...(feed.data?.pages.flatMap((p) => p.posts) || [])].filter((r) => r.items?.[0]?.mediaType === 'VIDEO' && !seen.has(r._id) && seen.add(r._id)); }, [feed.data, one.data]);
   // which reel is on screen
   useEffect(() => { const root = box.current; if (!root) return; const o = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && e.intersectionRatio >= 0.6) setActive(Number(e.target.dataset.i)); }), { root, threshold: [0.6] });
     root.querySelectorAll('.reel-slot').forEach((el) => o.observe(el)); return () => o.disconnect(); }, [reels.length]);
@@ -99,7 +101,7 @@ export default function Explore() {
         <h1 className="font-bold text-lg drop-shadow flex items-center gap-2"><Film size={18} />{author ? 'Reels' : 'Explore'}</h1>
         <div className="flex gap-2 pointer-events-auto">{author && <button onClick={() => nav(-1)} className="h-10 px-4 rounded-full bg-black/35 backdrop-blur text-sm font-semibold">Back</button>}<Link to="/search" aria-label="Search" className="w-10 h-10 rounded-full bg-black/35 backdrop-blur grid place-items-center"><Search size={18} /></Link></div></div>
       <div ref={box} className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar overscroll-contain" style={{ scrollbarWidth: 'none' }}>
-        {feed.isPending ? <div className="h-full grid place-items-center text-white/70"><span className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" /></div>
+        {feed.isPending || (only && one.isPending) ? <div className="h-full grid place-items-center text-white/70"><span className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" /></div>
           : feed.isError ? <div className="h-full grid place-items-center text-center text-white p-8 space-y-3"><div><p>Couldn’t load reels.</p><button className="btn-primary mt-3" onClick={() => feed.refetch()}>Try again</button></div></div>
           : reels.length === 0 ? <div className="h-full grid place-items-center text-center text-white p-8"><div className="space-y-3"><Film className="mx-auto text-white/60" size={44} /><p className="font-semibold text-lg">No reels yet</p><p className="text-white/70 text-sm">Be the first: tap Create, switch to Reel and share a short video.</p><Link to="/create?type=reel" className="btn-primary inline-flex">Create a reel</Link></div></div>
           : <>{reels.map((r, i) => <div key={r._id} data-i={i} className="reel-slot h-full w-full snap-start snap-always"><Reel post={r} active={i === active} near={Math.abs(i - active) <= 1} muted={muted} setMuted={setMuted} onComment={(p, cb) => setComments({ p, cb })} onProfile={() => {}} /></div>)}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, fmtPoints, fmtNaira } from '../lib/api';
+import { api, fmtPoints, fmtNaira, fmtUsd } from '../lib/api';
 import { get, keys } from '../lib/query.js';
 import { Section, Empty, Err, Skeleton } from '../components/ui.jsx';
 import { useLive } from '../context/Live.jsx';
@@ -25,13 +25,13 @@ export default function Wallet() {
   const w = wallet.data;
   return <div className="space-y-6"><h1 className="text-3xl font-bold">Wallet</h1><Err>{err}</Err>{note && <p role="status" className="card !p-3 text-sm text-warn">{note}</p>}
     <Section q={wallet} height="h-28">{() => <>
-      <div className="grid grid-cols-2 gap-3"><div className="card"><p className="text-ink2 text-sm">Available points</p><p className="text-4xl font-bold mt-1">{w.availablePoints.toLocaleString()}</p><p className="text-xs text-muted mt-1">≈ {fmtNaira(w.availablePoints * w.nairaPerPoint)} of in-app credit</p></div>
+      <div className="grid grid-cols-2 gap-3"><div className="card"><p className="text-ink2 text-sm">Available points</p><p className="text-4xl font-bold mt-1">{w.availablePoints.toLocaleString()}</p><p className="text-xs text-muted mt-1">≈ {fmtUsd(w.availablePoints * (w.usdPerPoint ?? 1))} of in-app credit</p></div>
         <div className="card"><p className="text-ink2 text-sm">Reserved</p><p className="text-4xl font-bold mt-1">{w.reservedPoints.toLocaleString()}</p></div></div>
-      <section className="card space-y-3"><h2 className="text-xl font-semibold">Buy points</h2><p className="text-sm text-ink2">1 point = {fmtNaira(w.nairaPerPoint)}. Choose any amount from 1 point. Points are for use inside the app only.</p>
+      <section className="card space-y-3"><h2 className="text-xl font-semibold">Buy points</h2><p className="text-sm text-ink2">1 point = {fmtUsd(w.usdPerPoint ?? 1)}. Choose any amount from 1 point. Card payments are charged in naira at today’s rate ({fmtNaira(w.nairaPerPoint)} per point). Points are for use inside the app only.</p>
         <div className="flex flex-wrap gap-2">{w.packages.map((p) => <button key={p.points} onClick={() => setAmt(String(p.points))} className={`chip ${Number(amt) === p.points ? 'bg-violet border-violet' : 'border-line text-ink2'}`}>{p.points} pt{p.points === 1 ? '' : 's'}{p.bonusPoints > 0 && <span className="text-ok text-xs"> +{p.bonusPoints} bonus</span>}</button>)}</div>
         <label className="block text-sm">Number of points<input type="number" inputMode="numeric" min={1} max={w.maxPurchasePoints} step={1} className="input mt-1 text-lg font-semibold" value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} /></label>
-        {(() => { const n = Number(amt); const ok = Number.isInteger(n) && n >= 1 && n <= w.maxPurchasePoints; const bonus = w.packages.find((p) => p.points === n)?.bonusPoints || 0; return <><p className="text-sm text-ink2 text-center">{ok ? <>You pay <b className="text-ink text-lg">{fmtNaira(n * w.nairaPerPoint)}</b> and get <b className="text-ink">{n}{bonus ? ` + ${bonus} bonus` : ''}</b> point{n === 1 && !bonus ? '' : 's'}</> : `Enter between 1 and ${w.maxPurchasePoints.toLocaleString()} points`}</p>
-          <button className="btn-primary w-full" disabled={busy || !ok} onClick={() => buy(n)}>{busy ? 'Please wait…' : ok ? `Buy ${n} point${n === 1 ? '' : 's'} · ${fmtNaira(n * w.nairaPerPoint)}` : 'Enter an amount'}</button></>; })()}
+        {(() => { const n = Number(amt); const ok = Number.isInteger(n) && n >= 1 && n <= w.maxPurchasePoints; const bonus = w.packages.find((p) => p.points === n)?.bonusPoints || 0; return <><p className="text-sm text-ink2 text-center">{ok ? <>You pay <b className="text-ink text-lg">{fmtUsd(n * (w.usdPerPoint ?? 1))}</b> <span className="text-muted">({fmtNaira(n * w.nairaPerPoint)})</span> and get <b className="text-ink">{n}{bonus ? ` + ${bonus} bonus` : ''}</b> point{n === 1 && !bonus ? '' : 's'}</> : `Enter between 1 and ${w.maxPurchasePoints.toLocaleString()} points`}</p>
+          <button className="btn-primary w-full" disabled={busy || !ok} onClick={() => buy(n)}>{busy ? 'Please wait…' : ok ? `Buy ${n} point${n === 1 ? '' : 's'} · ${fmtUsd(n * (w.usdPerPoint ?? 1))}` : 'Enter an amount'}</button></>; })()}
       </section></>}</Section>
     <section><h2 className="text-xl font-semibold mb-3">History</h2>
       <Section q={history} height="h-40" isEmpty={(d) => d.items.length === 0} empty={<Empty>No transactions yet.</Empty>}>{(d) => <ul className="space-y-2">{d.items.map((t) => <li key={t._id} className="card !p-3 flex justify-between gap-3 text-sm">
