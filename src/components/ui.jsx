@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import DefaultAvatar from './DefaultAvatar.jsx';
 
-const hue = (s = '') => [...s].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
 export function Avatar({ user, size = 40 }) {
-  const name = user?.displayName || user?.username || '?';
-  const h = hue(user?.username);
   if (user?.avatarUrl) return <img src={user.avatarUrl} alt="" className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />;
-  // No photo yet: the classic placeholder (a circle for the head, a half circle for the shoulders) in colours that are random per person
-  // but stable: the same username always gets the same pair, so a person looks the same everywhere.
-  const k = hue(`${user?.username || user?._id || user?.id || name}x`); const bg = `hsl(${h} ${55 + (k % 3) * 12}% ${38 + (k % 4) * 5}%)`;
-  const fg = [`hsl(${h} 90% 90%)`, `hsl(${(h + 150) % 360} 75% 82%)`, `hsl(${(h + 40) % 360} 85% 86%)`, '#fff'][k % 4];
-  return <svg viewBox="0 0 100 100" width={size} height={size} className="rounded-full shrink-0" aria-hidden role="presentation"><rect width="100" height="100" fill={bg} /><circle cx="50" cy="40" r="20" fill={fg} /><path d="M14 100a36 36 0 0 1 72 0z" fill={fg} /></svg>;
+  // No photo yet: a default picture chosen by gender (afro / curly hair / plain head and shoulders), drawn in the accent colour of the user's theme.
+  return <DefaultAvatar gender={user?.gender} size={size} />;
 }
 export const CreatorBadge = ({ small }) => <span title="Creator account" className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet to-pink text-white font-semibold ${small ? 'text-[9px] px-1.5 py-[1px]' : 'text-[11px] px-2 py-0.5'}`}><svg viewBox="0 0 24 24" width={small ? 9 : 11} height={small ? 9 : 11} fill="currentColor" aria-hidden><path d="M12 2l2.6 6.3 6.8.5-5.2 4.4 1.6 6.6L12 16.2 6.2 19.8l1.6-6.6L2.6 8.8l6.8-.5z" /></svg>Creator</span>;
 export const Badge = ({ children, tone = 'violet' }) => <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${tone === 'pink' ? 'bg-pink/20 text-pink' : tone === 'ok' ? 'bg-ok/15 text-ok' : 'bg-violet/20 text-violet-light'}`}>{children}</span>;

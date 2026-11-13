@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X, ImagePlus, Heart, Send, Loader2, Eye, ImageOff } from 'lucide-react';
 import { Avatar, Modal, Err } from './ui.jsx';
@@ -56,7 +57,7 @@ const Seg = ({ state, p, buf, loading }) => <i className="relative h-[3px] flex-
 export function StoryViewer({ groups, start = 0, startStoryId, onClose }) {
   const qc = useQueryClient(); const { toast } = useLive(); const [gi, setGi] = useState(start); const [si, setSi] = useState(() => Math.max(0, groups[start]?.stories.findIndex((x) => String(x._id) === String(startStoryId)) ?? 0));
   const [p, setP] = useState(0); const [buf, setBuf] = useState(0); const [loaded, setLoaded] = useState(false); const [waiting, setWaiting] = useState(false); const [failed, setFailed] = useState(false);
-  const [hold, setHold] = useState(false); const [typing, setTyping] = useState(false); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [liked, setLiked] = useState({}); const [pop, setPop] = useState(0);
+  const swipe = useRef(null); const swiped = useRef(false); const [hold, setHold] = useState(false); const [typing, setTyping] = useState(false); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [liked, setLiked] = useState({}); const [pop, setPop] = useState(0);
   const vid = useRef(); const g = groups[gi]; const s = g?.stories[si]; const mine = g?.source === 'me';
   const media = useQuery({ queryKey: ['story-media', s?._id], queryFn: get(`/stories/${s?._id}/media`), enabled: !!s?.hasMedia, staleTime: 4 * 60_000, retry: false });
   const access = useQuery({ queryKey: ['story-reply-status', s?._id], queryFn: get(`/stories/${s?._id}/reply-status`), enabled: !!s && !mine, staleTime: 60_000, retry: false });
@@ -65,6 +66,12 @@ export function StoryViewer({ groups, start = 0, startStoryId, onClose }) {
   const reset = () => { setP(0); setBuf(0); setLoaded(false); setWaiting(false); setFailed(false); setErr(''); setText(''); };
   const next = () => { reset(); if (si < g.stories.length - 1) setSi(si + 1); else if (gi < groups.length - 1) { setGi(gi + 1); setSi(0); } else close(); };
   const prev = () => { reset(); if (si > 0) setSi(si - 1); else if (gi > 0) { setGi(gi - 1); setSi(0); } };
+  // WhatsApp style: swipe left = the next person's status, swipe right = the previous person's. Tapping the sides still moves between one person's statuses.
+  const nextUser = () => { if (gi < groups.length - 1) { reset(); setGi(gi + 1); setSi(0); } else close(); };
+  const prevUser = () => { if (gi > 0) { reset(); setGi(gi - 1); setSi(0); } };
+  const down = (e) => { setHold(true); swipe.current = { x: e.clientX, y: e.clientY }; swiped.current = false; };
+  const up = (e) => { setHold(false); const s0 = swipe.current; swipe.current = null; if (!s0) return; const dx = e.clientX - s0.x, dy = e.clientY - s0.y;
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) { swiped.current = true; setTimeout(() => { swiped.current = false; }, 0); dx < 0 ? nextUser() : prevUser(); } };
   const close = () => { qc.invalidateQueries({ queryKey: ['stories'] }); onClose(); };
   useEffect(() => { if (s && !mine) api(`/stories/${s._id}/view`, { method: 'POST' }).catch(() => {}); }, [s?._id]);
   useEffect(() => { if (mine) qc.invalidateQueries({ queryKey: ['stories'] }); }, []); // fresh love/view counts for your own status
@@ -86,10 +93,10 @@ export function StoryViewer({ groups, start = 0, startStoryId, onClose }) {
     <div className="relative w-full max-w-md h-[100dvh] sm:h-[92vh] sm:rounded-modal overflow-hidden bg-black select-none flex flex-col">
       <div className="absolute top-0 inset-x-0 z-20 p-3 space-y-3 bg-gradient-to-b from-black/70 to-transparent" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <div className="flex gap-1">{g.stories.map((x, i) => <Seg key={x._id} state={i < si ? 'done' : i === si ? 'now' : 'todo'} p={p} buf={s.type === 'VIDEO' ? buf : 0} loading={i === si && loading} />)}</div>
-        <div className="flex items-center gap-2 text-white text-sm"><Avatar user={g.user} size={32} /><b>{g.user.displayName || g.user.username}</b>{g.source === 'suggested' && <span className="text-[10px] bg-white/20 rounded-full px-2 py-0.5">Suggested</span>}<button className="ml-auto w-9 h-9 grid place-items-center" onClick={close} aria-label="Close"><X /></button></div></div>
+        <div className="flex items-center gap-2 text-white text-sm"><Link to={`/u/${g.user.username}`} onClick={close} aria-label={`Open ${g.user.username}'s profile`} className="shrink-0"><Avatar user={g.user} size={32} /></Link><Link to={`/u/${g.user.username}`} onClick={close} className="font-bold hover:underline underline-offset-2 truncate">{g.user.displayName || g.user.username}</Link>{g.source === 'suggested' && <span className="text-[10px] bg-white/20 rounded-full px-2 py-0.5">Suggested</span>}<button className="ml-auto w-9 h-9 grid place-items-center" onClick={close} aria-label="Close"><X /></button></div></div>
 
       {/* media area: press and hold to pause, tap the sides to move */}
-      <div className="relative flex-1 min-h-0" onPointerDown={() => setHold(true)} onPointerUp={() => setHold(false)} onPointerLeave={() => setHold(false)} onPointerCancel={() => setHold(false)}>
+      <div className="relative flex-1 min-h-0 touch-none" onPointerDown={down} onPointerUp={up} onPointerLeave={() => setHold(false)} onPointerCancel={() => { setHold(false); swipe.current = null; }}>
         {s.type === 'TEXT' ? <div className={`h-full grid place-items-center p-8 ${statusBg(s.bg).className}`} style={statusBg(s.bg).style}><p className="text-white text-2xl font-bold text-center break-words animate-pop">{s.text}</p></div>
           : failed ? <div className="h-full grid place-items-center text-white/70 text-center p-6"><div className="space-y-2"><ImageOff className="mx-auto" /><p className="text-sm">This status could not be loaded.</p><p className="text-xs">Tap the right side to skip.</p></div></div>
           : media.data?.url ? (s.type === 'VIDEO'
@@ -100,9 +107,11 @@ export function StoryViewer({ groups, start = 0, startStoryId, onClose }) {
           : null}
         {loading && s.type !== 'TEXT' && !failed && <div className="absolute inset-0 grid place-items-center pointer-events-none"><span className="w-14 h-14 rounded-full bg-black/55 backdrop-blur grid place-items-center"><Loader2 className="animate-spin text-white" size={28} /></span></div>}
         {s.text && s.type !== 'TEXT' && <p className="absolute bottom-6 inset-x-0 text-center text-white px-6 drop-shadow font-medium">{s.text}</p>}
-        <button aria-label="Previous" className="absolute left-0 top-20 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); prev(); }} /><button aria-label="Next" className="absolute right-0 top-20 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); next(); }} />
+        <button aria-label="Previous" className="absolute left-0 top-20 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); if (!swiped.current) prev(); }} /><button aria-label="Next" className="absolute right-0 top-20 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); if (!swiped.current) next(); }} />
       </div>
 
+      {gi > 0 && <button aria-label="Previous person" onClick={prevUser} className="hidden sm:grid absolute left-2 top-1/2 z-20 w-10 h-10 place-items-center rounded-full bg-white/15 hover:bg-white/25 text-white text-xl">‹</button>}
+      {gi < groups.length - 1 && <button aria-label="Next person" onClick={nextUser} className="hidden sm:grid absolute right-2 top-1/2 z-20 w-10 h-10 place-items-center rounded-full bg-white/15 hover:bg-white/25 text-white text-xl">›</button>}
       {/* footer: reply + love (other people's statuses) or love/view counts (your own) */}
       <div className="shrink-0 p-3 bg-gradient-to-t from-black via-black/90 to-black/60 text-white space-y-2" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }} onPointerDown={(e) => e.stopPropagation()}>
         {mine ? <div className="flex items-center justify-center gap-6 text-sm" aria-label="Your status stats"><span className="flex items-center gap-1.5"><Heart size={18} className="text-pink" fill="currentColor" /><b>{s.likeCount ?? 0}</b> love{(s.likeCount ?? 0) === 1 ? '' : 's'}</span><span className="flex items-center gap-1.5"><Eye size={18} /><b>{s.viewCount ?? 0}</b> view{(s.viewCount ?? 0) === 1 ? '' : 's'}</span></div>

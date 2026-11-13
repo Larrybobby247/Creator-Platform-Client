@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Err } from './ui.jsx';
-import { api, fmtPoints, fmtNaira, uid } from '../lib/api';
+import { api, fmtPoints, fmtUsd, uid } from '../lib/api';
 import { useLive } from '../context/Live.jsx';
 const ICON = { Heart: '❤️', Rose: '🌹', Star: '⭐', Diamond: '💎', Crown: '👑', Trophy: '🏆', 'Premium Gift': '🎁' }; // fallback; the server sends `icon` too
 const CUSTOM_ICON = '🐉'; const CUSTOM_MIN = 100;
@@ -22,7 +22,7 @@ export default function GiftModal({ creator, onClose }) {
         <button onClick={() => setSel({ custom: true, name: 'Custom gift' })} className="bg-gradient-to-br from-violet/30 to-pink/30 rounded-card p-3 text-center ring-1 ring-violet/60 hover:ring-2" aria-label="Custom gift"><div className="text-3xl">{CUSTOM_ICON}</div><p className="text-sm mt-1">Custom</p><p className="text-xs text-violet-light">{customMin}+ pts</p></button></div> :
       <div className="space-y-3 text-center"><div className="text-6xl">{iconOf(sel)}</div><p className="font-semibold">{sel.name}</p>
         {sel.custom && <label className="block text-sm text-left">Your amount (points, at least {customMin})<input type="number" inputMode="numeric" min={customMin} step={1} className="input mt-1" value={amount} onChange={(e) => setAmount(e.target.value)} aria-invalid={tooLow} />{tooLow && <span className="text-xs text-bad block mt-1">A custom gift can’t be less than {customMin} points.</span>}</label>}
-        <p className="text-ink2 text-sm">{fmtPoints(pts || 0)} · {w && fmtNaira((pts || 0) * w.nairaPerPoint)}<br />Your balance: {w ? fmtPoints(w.availablePoints) : '…'}</p>
+        <p className="text-ink2 text-sm">{fmtPoints(pts || 0)} · {w && fmtUsd((pts || 0) * (w.usdPerPoint ?? 1))}<br />Your balance: {w ? fmtPoints(w.availablePoints) : '…'}</p>
         <Err>{err}</Err><div className="flex gap-2"><button className="btn-ghost flex-1" onClick={() => setSel(null)}>Back</button><button className="btn-primary flex-1" disabled={busy || tooLow} onClick={send}>{busy ? 'Sending…' : 'Send gift'}</button></div></div>}
   </Modal>;
 }

@@ -8,13 +8,13 @@ export default function MediaViewer({ items, start = 0, onClose }) {
   const go = (d) => setI((x) => Math.min(n - 1, Math.max(0, x + d)));
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); }; window.addEventListener('keydown', k); const prev = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { window.removeEventListener('keydown', k); document.body.style.overflow = prev; }; }, []);
   if (!it) return null;
-  return createPortal(<div className="fixed inset-0 z-[80] bg-black/95 flex flex-col animate-fade" role="dialog" aria-modal="true" aria-label="Media viewer" onClick={(e) => e.target === e.currentTarget && onClose()}
+  return createPortal(<div className="fixed inset-0 z-[80] bg-black/95 flex flex-col animate-fade" role="dialog" aria-modal="true" aria-label="Media viewer" onContextMenu={(e) => it.prot && e.preventDefault()} onClick={(e) => e.target === e.currentTarget && onClose()}
     onTouchStart={(e) => { touch.current = e.target.closest?.('[role=slider]') ? null : e.touches[0].clientX; }} onTouchEnd={(e) => { if (touch.current === null) return; const dx = e.changedTouches[0].clientX - touch.current; touch.current = null; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); }}>
     <div className="flex items-center justify-between p-3 text-white" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }} onClick={(e) => e.target === e.currentTarget && onClose()}><span className="text-sm opacity-80">{n > 1 ? `${i + 1} / ${n}` : ''}</span><button onClick={onClose} aria-label="Close viewer" className="w-10 h-10 grid place-items-center rounded-full bg-white/10"><X /></button></div>
     <div className="flex-1 min-h-0 relative flex items-center justify-center px-2" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      {it.type === 'VIDEO' ? <VideoPlayer key={it.url} src={it.url} className="w-full h-full" />
-        : it.type === 'AUDIO' ? <audio key={it.url} src={it.url} controls autoPlay className="w-full max-w-md" />
-        : <img key={it.url} src={it.url} alt="" className="max-w-full max-h-full object-contain select-none" draggable={false} />}
+      {it.type === 'VIDEO' ? <VideoPlayer key={it.url} src={it.url} className="w-full h-full" protect={it.prot} />
+        : it.type === 'AUDIO' ? <audio key={it.url} src={it.url} controls autoPlay className="w-full max-w-md" controlsList={it.prot ? 'nodownload' : undefined} onContextMenu={it.prot ? (e) => e.preventDefault() : undefined} />
+        : <img key={it.url} src={it.url} alt="" className={`max-w-full max-h-full object-contain select-none ${it.prot ? 'no-save' : ''}`} draggable={false} onContextMenu={it.prot ? (e) => e.preventDefault() : undefined} />}
       {i > 0 && <button onClick={() => go(-1)} aria-label="Previous" className="hidden sm:grid absolute left-3 w-11 h-11 place-items-center rounded-full bg-white/10 text-white"><ChevronLeft /></button>}
       {i < n - 1 && <button onClick={() => go(1)} aria-label="Next" className="hidden sm:grid absolute right-3 w-11 h-11 place-items-center rounded-full bg-white/10 text-white"><ChevronRight /></button>}
     </div>

@@ -6,8 +6,8 @@ export const IlloSignup = () => <Frame label="Create your account">
   <rect x="50" y="20" width="140" height="140" rx="18" fill="url(#s)" stroke="#30303D" />
   <circle cx="120" cy="65" r="20" fill="url(#v)" /><rect x="80" y="98" width="80" height="10" rx="5" fill="#30303D" /><rect x="90" y="116" width="60" height="10" rx="5" fill="#30303D" />
   <rect x="85" y="136" width="70" height="16" rx="8" fill="#8B5CF6" /><path d="M170 28l4 9 9 4-9 4-4 9-4-9-9-4 9-4z" fill="#EC4899" className="animate-floaty" /></Frame>;
-export const IlloPoints = () => <Frame label="Buy points with naira">
-  <rect x="20" y="50" width="100" height="70" rx="12" fill="url(#s)" stroke="#30303D" /><text x="70" y="92" textAnchor="middle" fontSize="22" fontWeight="700" fill="#F5F5FA">₦100</text>
+export const IlloPoints = () => <Frame label="Buy points: 1 point is 1 US dollar">
+  <rect x="20" y="50" width="100" height="70" rx="12" fill="url(#s)" stroke="#30303D" /><text x="70" y="92" textAnchor="middle" fontSize="22" fontWeight="700" fill="#F5F5FA">$1</text>
   <path d="M128 85h28m0 0l-8-8m8 8l-8 8" stroke="#A78BFA" strokeWidth="3" fill="none" strokeLinecap="round" />
   <g className="animate-floaty"><circle cx="190" cy="85" r="30" fill="url(#v)" /><text x="190" y="93" textAnchor="middle" fontSize="24" fontWeight="800" fill="#fff">1</text></g>
   <text x="190" y="135" textAnchor="middle" fontSize="11" fill="#A1A1B5">point</text></Frame>;

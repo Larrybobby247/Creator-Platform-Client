@@ -6,7 +6,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
 
 // Full video player: big play/pause with a quick animation, a seek bar that shows how much has LOADED (lighter) and how much has PLAYED (colour),
 // a spinner while buffering, +/-10 s buttons, speed, mute, and controls that fade away while playing.
-export default function VideoPlayer({ src, autoPlay = true, onEnded, className = '' }) {
+export default function VideoPlayer({ src, autoPlay = true, onEnded, className = '', protect = false }) {
   const v = useRef(); const bar = useRef(); const hideT = useRef();
   const [playing, setPlaying] = useState(false); const [cur, setCur] = useState(0); const [dur, setDur] = useState(0); const [buf, setBuf] = useState(0);
   const [waiting, setWaiting] = useState(true); const [muted, setMuted] = useState(false); const [speed, setSpeed] = useState(1); const [show, setShow] = useState(true);
@@ -26,7 +26,7 @@ export default function VideoPlayer({ src, autoPlay = true, onEnded, className =
 
   const progress = drag !== null ? drag : dur ? cur / dur : 0;
   return <div className={`relative bg-black select-none flex items-center justify-center ${className}`} onMouseMove={bump} onTouchStart={bump}>
-    <video ref={v} src={src} playsInline preload="auto" className="max-w-full max-h-full" onClick={toggle}
+    <video ref={v} src={src} playsInline preload="auto" className={`max-w-full max-h-full ${protect ? 'no-save' : ''}`} onClick={toggle} {...(protect ? { controlsList: 'nodownload noremoteplayback', disablePictureInPicture: true, disableRemotePlayback: true, onContextMenu: (e) => e.preventDefault() } : {})}
       onPlay={() => { setPlaying(true); bump(); }} onPause={() => { setPlaying(false); setShow(true); }} onEnded={() => { setPlaying(false); setShow(true); onEnded?.(); }}
       onLoadedMetadata={(e) => { setDur(e.target.duration || 0); readBuffer(); }} onDurationChange={(e) => setDur(e.target.duration || 0)}
       onTimeUpdate={(e) => { if (drag === null) setCur(e.target.currentTime); readBuffer(); }} onProgress={readBuffer}
