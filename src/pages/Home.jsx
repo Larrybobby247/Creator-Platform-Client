@@ -25,7 +25,7 @@ export default function Home() {
   const refresh = async () => { setRefreshing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); try { await qc.resetQueries({ queryKey: keys.feed(tab) }); qc.invalidateQueries({ queryKey: ['stories'] }); } finally { setRefreshing(false); setAtEnd(false); } };
   const choose = (k, e) => { setTab(k); e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); };
   const posts = feed.data?.pages.flatMap((p) => p.posts) || [];
-  const empty = tab === 'following' ? 'Follow people on Explore to fill your feed.' : tab === 'communities' ? 'Join communities to see their posts here.' : 'No posts yet.';
+  const empty = tab === 'following' ? 'Follow people on Loop to fill your feed.' : tab === 'communities' ? 'Join communities to see their posts here.' : 'No posts yet.';
   return <div className="space-y-4">
     {atEnd && <div className="fixed top-16 inset-x-0 z-30 flex justify-center pointer-events-none lg:pl-60"><button onClick={refresh} disabled={refreshing} className="pointer-events-auto btn-primary !py-2 !px-4 text-sm shadow-lg animate-[slide_.25s_ease-out]"><ArrowUp size={16} className={refreshing ? 'animate-bounce' : ''} />{refreshing ? 'Refreshing…' : 'Refresh for recent posts'}</button></div>}
     <InstallApp variant="banner" />

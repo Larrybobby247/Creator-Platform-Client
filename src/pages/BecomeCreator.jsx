@@ -17,7 +17,7 @@ export default function BecomeCreator() {
   const meta = useQuery({ queryKey: ['creator-meta'], queryFn: get('/creators/application/meta'), staleTime: 5 * 60_000 });
   const banksQ = useQuery({ queryKey: ['application-banks'], queryFn: get('/creators/application/banks'), staleTime: 6 * 3600_000 });
   const [step, setStep] = useState(-1); // -1 = explanation
-  const [d, setD] = useState({ legalName: '', dob: '', phone: '' }); const [agree, setAgree] = useState(false);
+  const [d, setD] = useState({ legalName: '', dob: '', phone: '' }); const [agree, setAgree] = useState(false); const [cats, setCats] = useState([]);
   const [svc, setSvc] = useState({}); const [bank, setBank] = useState({ bankCode: '', accountNumber: '' }); const [holder, setHolder] = useState(null); const [confirmed, setConfirmed] = useState(false);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   useEffect(() => { setHolder(null); setConfirmed(false); }, [bank.bankCode, bank.accountNumber]); // any change means the name must be checked again
@@ -25,12 +25,12 @@ export default function BecomeCreator() {
   const maxDob = useMemo(() => { const x = new Date(); x.setFullYear(x.getFullYear() - 18); return x.toISOString().slice(0, 10); }, []);
   if (user.accountMode === 'CREATOR') return <Navigate to="/studio" replace />;
 
-  const detailsOk = d.legalName.trim().split(/\s+/).length >= 2 && d.legalName.trim().length >= 5 && /^\d{4}-\d{2}-\d{2}$/.test(d.dob) && d.dob <= maxDob && /^(\+234|0)[789][01]\d{8}$/.test(d.phone.replace(/[\s-]/g, ''));
+  const detailsOk = cats.length > 0 && d.legalName.trim().split(/\s+/).length >= 2 && d.legalName.trim().length >= 5 && /^\d{4}-\d{2}-\d{2}$/.test(d.dob) && d.dob <= maxDob && /^(\+234|0)[789][01]\d{8}$/.test(d.phone.replace(/[\s-]/g, ''));
   const priceMissing = (meta.data?.services || []).some((s) => s.priced && s.key !== 'specialRequests' && svc[s.key]?.enabled && !(Number(svc[s.key].pricePoints) >= 1));
   const verify = async () => { setBusy(true); setErr(''); setHolder(null); try { setHolder((await api('/creators/application/verify-account', { method: 'POST', body: bank })).accountName); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const finish = async () => { setBusy(true); setErr('');
     try { const services = Object.fromEntries((meta.data.services).map((s) => [s.key, { enabled: !!svc[s.key]?.enabled, ...(Number(svc[s.key]?.pricePoints) > 0 ? { pricePoints: Number(svc[s.key].pricePoints) } : {}) }]));
-      await api('/creators/apply', { method: 'POST', body: { contentCategory: 'Personal content', country: 'Nigeria', legalName: d.legalName.trim(), dob: d.dob, phone: d.phone, acceptGuidelines: true, guidelinesVersion: meta.data.guidelinesVersion, services, bank: { ...bank, bankName, confirmedName: holder } } });
+      await api('/creators/apply', { method: 'POST', body: { contentCategories: cats, country: 'Nigeria', legalName: d.legalName.trim(), dob: d.dob, phone: d.phone, acceptGuidelines: true, guidelinesVersion: meta.data.guidelinesVersion, services, bank: { ...bank, bankName, confirmedName: holder } } });
       await refresh(); toast('You are now a creator 🎉'); nav('/studio'); } catch (e) { setErr(e.message); if (e.code === 'GUIDELINES_CHANGED') { setStep(1); setAgree(false); meta.refetch(); } } finally { setBusy(false); } };
 
   return <Section q={meta} height="h-64">{(m) => <div className="space-y-4">
@@ -48,7 +48,9 @@ export default function BecomeCreator() {
       <p className="text-sm font-semibold">{STEPS[step]}</p>
 
       {step === 0 && <div className="card space-y-3 animate-rise">
-        <label className="block text-sm">Content category<select className="input mt-1" value="Personal content" disabled><option>Personal content</option></select></label>
+        <fieldset className="text-sm"><legend className="mb-1">Content categories <span className="text-muted">(choose all that fit)</span></legend>
+          <div className="flex flex-wrap gap-2">{(meta.data?.categories || []).map((c) => { const on = cats.includes(c); return <button key={c} type="button" role="checkbox" aria-checked={on} onClick={() => setCats(on ? cats.filter((x) => x !== c) : [...cats, c])} className={`chip ${on ? 'bg-violet border-violet text-white' : 'border-line text-ink2'}`}>{on ? '✓ ' : ''}{c}</button>; })}</div>
+          {cats.length === 0 && <span className="text-xs text-muted">Pick at least one.</span>}</fieldset>
         <label className="block text-sm">Country<input className="input mt-1" value="Nigeria" disabled /></label>
         <label className="block text-sm">Full legal name<input className="input mt-1" autoComplete="name" value={d.legalName} onChange={(e) => setD({ ...d, legalName: e.target.value })} placeholder="As on your ID or bank account" /><span className="text-xs text-muted">Private. Used only for verification and never shown to other users. Your public name stays the same.</span></label>
         <label className="block text-sm">Date of birth<input type="date" className="input mt-1" max={maxDob} value={d.dob} onChange={(e) => setD({ ...d, dob: e.target.value })} /><span className="text-xs text-muted">You must be 18 or older.</span></label>

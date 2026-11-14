@@ -7,7 +7,7 @@ import { IlloSignup, IlloPoints, IlloUnlock, HeroPhone } from '../components/Ill
 // The landing page speaks to everyday users first: what you get from joining. Creators get their own page (/creators), linked from here.
 const steps = [[IlloSignup, '1. Join free', 'Sign up with your email or Google in under a minute. No fee to join.'], [IlloPoints, '2. Get points', 'Points are simple in-app credit: 1 point = $1. Buy only what you need.'], [IlloUnlock, '3. Enjoy & support', 'Watch, chat, unlock what you love and send gifts to the people you follow.']];
 const benefits = [
-  ['🎬', 'Endless reels', 'Swipe through short videos in Explore, like, comment and share them with a link.'],
+  ['🎬', 'Endless reels', 'Swipe through short videos in Loop, like, comment and share them with a link.'],
   ['🔒', 'Unlock only what you want', 'Pay once for the exclusive photos and videos you care about. No forced subscriptions.'],
   ['💬', 'Chat in real time', 'Message creators and friends with typing indicators, read receipts, voice notes and replies.'],
   ['🎁', 'Send gifts', 'Say thanks with gifts that go straight to your favourite creators.'],

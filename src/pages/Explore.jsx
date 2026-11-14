@@ -98,7 +98,7 @@ export default function Explore() {
   return <div className="reels-shell fixed top-0 left-0 right-0 lg:left-60 z-[25] bg-black flex justify-center" style={{ bottom: 'var(--reels-bottom)' }}>
     <div className="relative h-full w-full max-w-[460px] lg:my-0 lg:border-x lg:border-white/10">
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-3 pt-[calc(env(safe-area-inset-top)+0.6rem)] pb-2 text-white pointer-events-none">
-        <h1 className="font-bold text-lg drop-shadow flex items-center gap-2"><Film size={18} />{author ? 'Reels' : 'Explore'}</h1>
+        <h1 className="font-bold text-lg drop-shadow flex items-center gap-2"><Film size={18} />{author ? 'Reels' : 'Loop'}</h1>
         <div className="flex gap-2 pointer-events-auto">{author && <button onClick={() => nav(-1)} className="h-10 px-4 rounded-full bg-black/35 backdrop-blur text-sm font-semibold">Back</button>}<Link to="/search" aria-label="Search" className="w-10 h-10 rounded-full bg-black/35 backdrop-blur grid place-items-center"><Search size={18} /></Link></div></div>
       <div ref={box} className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar overscroll-contain" style={{ scrollbarWidth: 'none' }}>
         {feed.isPending || (only && one.isPending) ? <div className="h-full grid place-items-center text-white/70"><span className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" /></div>

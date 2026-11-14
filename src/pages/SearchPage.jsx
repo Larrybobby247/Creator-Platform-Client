@@ -23,7 +23,7 @@ export default function SearchPage() {
   const tagQ = q.trim().replace(/^#/, ''); const dtag = useDebounced(tagQ, 200);
   const tags = useQuery({ queryKey: ['hashtags', dtag], queryFn: ({ signal }) => api(`/hashtags?q=${encodeURIComponent(dtag)}`, { signal }), placeholderData: keepPreviousData, staleTime: 60_000, enabled: dtag.length > 0 || q.startsWith('#') || (focus && !q) });
   const s = search.data;
-  return <div className="space-y-6"><h1 className="text-3xl font-bold">Explore</h1>
+  return <div className="space-y-6"><h1 className="text-3xl font-bold">Search</h1>
     <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input autoFocus className="input !pl-9" placeholder="Search people, creators, communities and #hashtags…" value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 150)} aria-label="Search" />
       {focus && tags.data?.tags?.length > 0 && <ul className="absolute z-20 left-0 right-0 mt-1 card !p-1 animate-fade" role="listbox" aria-label="Hashtag suggestions"><li className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted">{q.trim() ? 'Hashtag suggestions' : 'Popular hashtags'}</li>{tags.data.tags.map((t) => <li key={t.tag}><Link to={`/topic/${t.tag}`} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-2 px-3 py-2 rounded hover:bg-card2 text-sm"><Hash size={14} className="text-violet-light" /><b>{t.tag}</b><span className="text-xs text-muted ml-auto">{t.count} post{t.count === 1 ? '' : 's'}</span></Link></li>)}</ul>}</div>
     {searching ? <div className={`space-y-5 animate-tab ${search.isPlaceholderData ? 'opacity-60' : ''}`}>
