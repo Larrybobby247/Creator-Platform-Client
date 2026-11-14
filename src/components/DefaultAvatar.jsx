@@ -1,6 +1,6 @@
 // Default profile pictures, drawn in ONE colour: the accent colour of the theme the person is using (it follows the theme live, no re-render needed).
-//  MALE   -> big round afro, head and shoulders
-//  FEMALE -> short curly hair with a fringe, head and shoulders
+//  FEMALE -> big round afro, head and shoulders
+//  MALE   -> short curly hair with a fringe, head and shoulders
 //  anything else / not chosen -> plain head and shoulders
 // There is deliberately no outer ring: the picture fills whatever circle it is shown in.
 const ACC = 'var(--color-violet)';
@@ -18,11 +18,11 @@ const SHOULDERS = 'M16 101C16 80 31 71 50 71C69 71 84 80 84 101Z';
 export default function DefaultAvatar({ gender, size = 40 }) {
   const g = String(gender || '').toUpperCase();
   return <svg viewBox="0 0 100 100" width={size} height={size} className="rounded-full shrink-0 overflow-hidden" aria-hidden role="presentation" style={{ background: BG }}>
-    {g === 'MALE' ? <>
+    {g === 'FEMALE' ? <>
       <Cloud bumps={AFRO} />
       <circle cx="50" cy="46" r="15" style={{ ...stroke, fill: SOFT }} />
       <path d={SHOULDERS} style={{ ...stroke, fill: SOFT }} /></>
-    : g === 'FEMALE' ? <>
+    : g === 'MALE' ? <>
       <path d={SHOULDERS} style={{ ...stroke, fill: SOFT }} />
       <circle cx="50" cy="48" r="16" style={{ ...stroke, fill: SOFT }} />
       <Cloud bumps={CURLS} />

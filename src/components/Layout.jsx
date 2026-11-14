@@ -20,9 +20,9 @@ export function PointChip() {
 
 export default function Layout({ children }) {
   const { user } = useAuth(); const { msgUnread, notifUnread } = useLive(); const platform = usePlatform(); const loc = useLocation();
-  const side = [['/home', 'Home', Home], ['/explore', 'Explore', Compass], ['/messages', 'Messages', MessageCircle, msgUnread], ['/communities', 'Communities', Users], ['/wallet', 'Wallet', WalletIcon], ['/insights', 'Insights', TrendingUp], ['/referrals', 'Referrals', Gift], [`/u/${user.username}`, 'Profile', User], ['/settings', 'Settings', Settings]];
+  const side = [['/home', 'Home', Home], ['/explore', 'Loop', Compass], ['/messages', 'Messages', MessageCircle, msgUnread], ['/communities', 'Communities', Users], ['/wallet', 'Wallet', WalletIcon], ['/insights', 'Insights', TrendingUp], ['/referrals', 'Referrals', Gift], [`/u/${user.username}`, 'Profile', User], ['/settings', 'Settings', Settings]];
   if (user.accountMode === 'CREATOR') side.push(['/studio', 'Creator Studio', BarChart3]);
-  const bottom = [['/home', 'Home', Home], ['/explore', 'Explore', Compass], ['/create', 'Create', PlusSquare], ['/messages', 'Messages', MessageCircle, msgUnread], [`/u/${user.username}`, 'Profile', User]];
+  const bottom = [['/home', 'Home', Home], ['/explore', 'Loop', Compass], ['/create', 'Create', PlusSquare], ['/messages', 'Messages', MessageCircle, msgUnread], [`/u/${user.username}`, 'Profile', User]];
   return <div className="min-h-screen">
     <aside className="hidden lg:flex fixed inset-y-0 left-0 w-60 flex-col gap-1 p-4 border-r border-divider bg-bg overflow-y-auto">
       <Link to="/home" aria-label={platform.name} className="flex items-center gap-2 px-3 py-4"><Logo size={44} /></Link>
