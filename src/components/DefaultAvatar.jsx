@@ -12,7 +12,8 @@ const ring = (n, cx, cy, R, r, from = 0, to = 360) => Array.from({ length: n }, 
 const Cloud = ({ bumps }) => <g><g style={{ ...stroke, fill: ACC }}>{bumps.map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={r} />)}</g><g style={{ fill: SOFT, stroke: 'none' }}>{bumps.map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={r - 0.4} />)}</g></g>;
 
 const AFRO = [...ring(12, 50, 40, 21, 9.5), [50, 40, 22, 0]].map(([x, y, r]) => [x, y, r]);
-const CURLS = [...ring(8, 50, 44, 17, 7.2, 195, 345), [30, 52, 6], [70, 52, 6], [36, 58, 4.6], [64, 58, 4.6]];
+const MALE_SHOULDERS = 'M8 101C8 82 27 73 50 73C73 73 92 82 92 101Z'; // broader shoulders
+const HAIR = `color-mix(in srgb, ${ACC} 55%, var(--color-card))`; // short cropped hair, a little darker than the skin tone
 const SHOULDERS = 'M16 101C16 80 31 71 50 71C69 71 84 80 84 101Z';
 
 export default function DefaultAvatar({ gender, size = 40 }) {
@@ -23,10 +24,10 @@ export default function DefaultAvatar({ gender, size = 40 }) {
       <circle cx="50" cy="46" r="15" style={{ ...stroke, fill: SOFT }} />
       <path d={SHOULDERS} style={{ ...stroke, fill: SOFT }} /></>
     : g === 'MALE' ? <>
-      <path d={SHOULDERS} style={{ ...stroke, fill: SOFT }} />
-      <circle cx="50" cy="48" r="16" style={{ ...stroke, fill: SOFT }} />
-      <Cloud bumps={CURLS} />
-      <path d="M36 44Q50 40 64 44" style={{ ...stroke, fill: 'none' }} /></>
+      <path d="M43 60V75H57V60" style={{ ...stroke, fill: SOFT }} />
+      <path d={MALE_SHOULDERS} style={{ ...stroke, fill: SOFT }} />
+      <path d="M34 40C34 31 41 26 50 26C59 26 66 31 66 40V50C66 60 59 67 50 67C41 67 34 60 34 50Z" style={{ ...stroke, fill: SOFT }} />
+      <path d="M33 43C30 29 39 20 50 20C61 20 70 29 67 43C65 36 60 32 50 32C40 32 35 36 33 43Z" style={{ ...stroke, fill: HAIR }} /></>
     : <>
       <circle cx="50" cy="40" r="17" style={{ ...stroke, fill: SOFT }} />
       <path d={SHOULDERS} style={{ ...stroke, fill: SOFT }} /></>}
